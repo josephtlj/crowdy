@@ -6,7 +6,8 @@ export type VenueCategory =
   | "Hawker"
   | "Gym"
   | "Park"
-  | "Worship";
+  | "Worship"
+  | "Transport";
 
 export interface Venue {
   id: string;

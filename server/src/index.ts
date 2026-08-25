@@ -1,3 +1,5 @@
+process.loadEnvFile(); // reads server/.env - must run before anything reads process.env
+
 import express from "express";
 import cors from "cors";
 import { venuesRouter } from "./routes/venues";

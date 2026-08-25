@@ -1,10 +1,10 @@
 import { Venue } from "../types/venue";
+import { STATIONS } from "./stations";
+import { fetchStationCrowdLevels, mapCrowdCode } from "../services/lta";
 
-// Placeholder data standing in for the LTA DataMall + Google Popular Times
-// aggregator until that pipeline is wired up. Same shape the real API will return.
-// Kept identical to app/src/data/mockVenues.ts for now; once real sources are
-// wired in, this file becomes the output of the aggregator instead of a constant.
-export const venues: Venue[] = [
+// Malls/attractions/hawkers/gyms are still mock data - Google Popular Times
+// isn't wired in yet. MRT stations below are real, live LTA data.
+const mockVenues: Venue[] = [
   {
     id: "vivocity",
     name: "VivoCity",
@@ -126,3 +126,50 @@ export const venues: Venue[] = [
     lastUpdated: new Date().toISOString(),
   },
 ];
+
+// LTA updates every 10 minutes; caching for 5 avoids hammering their API on
+// every single incoming request while still staying well within freshness.
+const CACHE_TTL_MS = 5 * 60 * 1000;
+let cachedTransportVenues: Venue[] = [];
+let cacheTimestamp = 0;
+
+async function getTransportVenues(): Promise<Venue[]> {
+  const isFresh = Date.now() - cacheTimestamp < CACHE_TTL_MS && cachedTransportVenues.length > 0;
+  if (isFresh) return cachedTransportVenues;
+
+  try {
+    const crowdByStationCode = await fetchStationCrowdLevels();
+    const now = new Date().toISOString();
+
+    cachedTransportVenues = STATIONS.map((station) => {
+      const record = crowdByStationCode.get(station.code);
+      const mapped = record ? mapCrowdCode(record.CrowdLevel) : null;
+      if (!mapped) return null;
+      const venue: Venue = {
+        id: station.id,
+        name: station.name,
+        category: "Transport",
+        address: station.address,
+        lat: station.lat,
+        lng: station.lng,
+        crowdPercent: mapped.crowdPercent,
+        crowdLevel: mapped.crowdLevel,
+        source: "LTA",
+        lastUpdated: now,
+      };
+      return venue;
+    }).filter((v): v is Venue => v !== null);
+    cacheTimestamp = Date.now();
+  } catch (err) {
+    // Keep serving whatever we last had (even if stale) rather than a
+    // total outage - the rest of the app (malls, hawkers) still works.
+    console.error("LTA fetch failed, serving stale/empty transport data:", err);
+  }
+
+  return cachedTransportVenues;
+}
+
+export async function getVenues(): Promise<Venue[]> {
+  const transportVenues = await getTransportVenues();
+  return [...mockVenues, ...transportVenues];
+}

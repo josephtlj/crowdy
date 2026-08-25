@@ -1,16 +1,17 @@
 import { Router } from "express";
-import { venues } from "../data/venues";
+import { getVenues } from "../data/venues";
 import { haversineKm } from "../services/distance";
 import { findAlternatives } from "../services/alternatives";
 
 export const venuesRouter = Router();
 
 // GET /venues?lat=1.30&lng=103.85 -> all venues, sorted nearest first
-venuesRouter.get("/", (req, res) => {
+venuesRouter.get("/", async (req, res) => {
   const lat = Number(req.query.lat);
   const lng = Number(req.query.lng);
   const hasLocation = !Number.isNaN(lat) && !Number.isNaN(lng);
 
+  const venues = await getVenues();
   const result = venues
     .map((venue) => ({
       ...venue,
@@ -22,7 +23,8 @@ venuesRouter.get("/", (req, res) => {
 });
 
 // GET /venues/:id -> single venue detail
-venuesRouter.get("/:id", (req, res) => {
+venuesRouter.get("/:id", async (req, res) => {
+  const venues = await getVenues();
   const venue = venues.find((v) => v.id === req.params.id);
   if (!venue) {
     return res.status(404).json({ error: "Venue not found" });
@@ -31,7 +33,8 @@ venuesRouter.get("/:id", (req, res) => {
 });
 
 // GET /venues/:id/alternatives -> lower-crowd venues of the same category nearby
-venuesRouter.get("/:id/alternatives", (req, res) => {
+venuesRouter.get("/:id/alternatives", async (req, res) => {
+  const venues = await getVenues();
   const venue = venues.find((v) => v.id === req.params.id);
   if (!venue) {
     return res.status(404).json({ error: "Venue not found" });
