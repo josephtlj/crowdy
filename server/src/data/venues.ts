@@ -1,6 +1,7 @@
 import { Venue } from "../types/venue";
 import { STATIONS } from "./stations";
 import { fetchStationCrowdLevels, mapCrowdCode } from "../services/lta";
+import { spreadOverlappingVenues } from "../services/declutter";
 
 // Malls/attractions/hawkers/gyms are still mock data - Google Popular Times
 // isn't wired in yet. MRT stations below are real, live LTA data.
@@ -148,7 +149,7 @@ async function getTransportVenues(): Promise<Venue[]> {
       const venue: Venue = {
         id: station.id,
         name: station.name,
-        category: "Transport",
+        category: station.mode,
         address: station.address,
         lat: station.lat,
         lng: station.lng,
@@ -171,5 +172,5 @@ async function getTransportVenues(): Promise<Venue[]> {
 
 export async function getVenues(): Promise<Venue[]> {
   const transportVenues = await getTransportVenues();
-  return [...mockVenues, ...transportVenues];
+  return spreadOverlappingVenues([...mockVenues, ...transportVenues]);
 }

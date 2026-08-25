@@ -3,6 +3,7 @@ import { StyleSheet } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 import { Venue } from "../types/venue";
 import { MapRegion } from "../types/region";
+import { PIN_COLORS } from "./pinColors";
 
 interface Props {
   initialRegion: MapRegion;
@@ -26,7 +27,8 @@ export function VenueMap({ initialRegion, venues, onSelectVenue, onRegionChange 
           key={venue.id}
           coordinate={{ latitude: venue.lat, longitude: venue.lng }}
           title={venue.name}
-          description={`${venue.crowdLevel} crowd`}
+          description={`${venue.category} · ${venue.crowdLevel} crowd`}
+          pinColor={PIN_COLORS[venue.category]}
           onPress={() => onSelectVenue(venue.id)}
         />
       ))}
