@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -12,28 +12,29 @@ import * as Location from "expo-location";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/types";
 import { Venue } from "../types/venue";
+import { MapRegion } from "../types/region";
 import { getNearbyVenues } from "../services/api";
+import { haversineKm } from "../services/distance";
 import { CrowdBadge } from "../components/CrowdBadge";
-
-// react-native-maps has no web renderer, so the map only shows on iOS/Android.
-// Web still gets the full nearby list — just without the map visual on top.
-let MapView: any = null;
-let Marker: any = null;
-if (Platform.OS !== "web") {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const maps = require("react-native-maps");
-  MapView = maps.default;
-  Marker = maps.Marker;
-}
+import { VenueMap } from "../components/VenueMap";
 
 // Marina Bay, used only if the user denies location permission.
 const FALLBACK_REGION = { lat: 1.2838, lng: 103.8591 };
+const DEFAULT_DELTA = 0.05;
 
 type Props = NativeStackScreenProps<RootStackParamList, "Home">;
 
+function isWithinRegion(venue: Venue, region: MapRegion): boolean {
+  const latMin = region.latitude - region.latitudeDelta / 2;
+  const latMax = region.latitude + region.latitudeDelta / 2;
+  const lngMin = region.longitude - region.longitudeDelta / 2;
+  const lngMax = region.longitude + region.longitudeDelta / 2;
+  return venue.lat >= latMin && venue.lat <= latMax && venue.lng >= lngMin && venue.lng <= lngMax;
+}
+
 export default function HomeScreen({ navigation }: Props) {
   const [venues, setVenues] = useState<Venue[]>([]);
-  const [userLocation, setUserLocation] = useState(FALLBACK_REGION);
+  const [region, setRegion] = useState<MapRegion | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -44,14 +45,34 @@ export default function HomeScreen({ navigation }: Props) {
         const position = await Location.getCurrentPositionAsync({});
         coords = { lat: position.coords.latitude, lng: position.coords.longitude };
       }
-      setUserLocation(coords);
+      setRegion({
+        latitude: coords.lat,
+        longitude: coords.lng,
+        latitudeDelta: DEFAULT_DELTA,
+        longitudeDelta: DEFAULT_DELTA,
+      });
       const nearby = await getNearbyVenues(coords.lat, coords.lng);
       setVenues(nearby);
       setLoading(false);
     })();
   }, []);
 
-  if (loading) {
+  // Web has no map to pan, so it always shows the full nearby list.
+  // Native re-filters to whatever's inside the map's current viewport,
+  // sorted by distance to the viewport's centre rather than the user -
+  // this is the Singabus-style "list follows the map" behaviour.
+  const visibleVenues = useMemo(() => {
+    if (Platform.OS === "web" || !region) return venues;
+    return venues
+      .filter((venue) => isWithinRegion(venue, region))
+      .map((venue) => ({
+        ...venue,
+        distanceKm: haversineKm(region.latitude, region.longitude, venue.lat, venue.lng),
+      }))
+      .sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0));
+  }, [venues, region]);
+
+  if (loading || !region) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" />
@@ -61,33 +82,20 @@ export default function HomeScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      {MapView && (
-        <MapView
-          style={styles.map}
-          initialRegion={{
-            latitude: userLocation.lat,
-            longitude: userLocation.lng,
-            latitudeDelta: 0.05,
-            longitudeDelta: 0.05,
-          }}
-          showsUserLocation
-        >
-          {venues.map((venue) => (
-            <Marker
-              key={venue.id}
-              coordinate={{ latitude: venue.lat, longitude: venue.lng }}
-              title={venue.name}
-              description={`${venue.crowdLevel} crowd`}
-              onPress={() => navigation.navigate("Detail", { venueId: venue.id })}
-            />
-          ))}
-        </MapView>
-      )}
+      <VenueMap
+        initialRegion={region}
+        venues={venues}
+        onSelectVenue={(venueId) => navigation.navigate("Detail", { venueId })}
+        onRegionChange={setRegion}
+      />
 
       <FlatList
         style={styles.list}
-        data={venues}
+        data={visibleVenues}
         keyExtractor={(item) => item.id}
+        ListEmptyComponent={
+          <Text style={styles.empty}>No venues in view - pan or zoom out the map.</Text>
+        }
         renderItem={({ item }) => (
           <TouchableOpacity
             style={styles.row}
@@ -110,8 +118,8 @@ export default function HomeScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
-  map: { width: "100%", height: "45%" },
   list: { flex: 1 },
+  empty: { textAlign: "center", padding: 24, color: "#888" },
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
