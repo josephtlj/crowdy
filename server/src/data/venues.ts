@@ -1,23 +1,14 @@
 import { Venue } from "../types/venue";
 import { STATIONS } from "./stations";
 import { fetchStationCrowdLevels, mapCrowdCode } from "../services/lta";
+import { fetchLtaCarparkVenues } from "../services/carparks";
 import { spreadOverlappingVenues } from "../services/declutter";
 
-// Malls/attractions/hawkers/gyms are still mock data - Google Popular Times
-// isn't wired in yet. MRT stations below are real, live LTA data.
+// Remaining mock venues: attractions/hawkers/gyms Google Popular Times will
+// eventually cover. VivoCity, ION Orchard, Orchard Central, and Sentosa were
+// removed from here since the real LTA carpark feed below now covers them -
+// keeping both would show two pins for the same mall.
 const mockVenues: Venue[] = [
-  {
-    id: "vivocity",
-    name: "VivoCity",
-    category: "Mall",
-    address: "1 HarbourFront Walk",
-    lat: 1.264,
-    lng: 103.8222,
-    crowdPercent: 90,
-    crowdLevel: "Very High",
-    source: "Mock",
-    lastUpdated: new Date().toISOString(),
-  },
   {
     id: "harbourfront-centre",
     name: "HarbourFront Centre",
@@ -55,30 +46,6 @@ const mockVenues: Venue[] = [
     lastUpdated: new Date().toISOString(),
   },
   {
-    id: "ion-orchard",
-    name: "ION Orchard",
-    category: "Mall",
-    address: "2 Orchard Turn",
-    lat: 1.3039,
-    lng: 103.8318,
-    crowdPercent: 80,
-    crowdLevel: "Very High",
-    source: "Mock",
-    lastUpdated: new Date().toISOString(),
-  },
-  {
-    id: "orchard-central",
-    name: "Orchard Central",
-    category: "Mall",
-    address: "181 Orchard Rd",
-    lat: 1.301,
-    lng: 103.839,
-    crowdPercent: 45,
-    crowdLevel: "Moderate",
-    source: "Mock",
-    lastUpdated: new Date().toISOString(),
-  },
-  {
     id: "maxwell-food-centre",
     name: "Maxwell Food Centre",
     category: "Hawker",
@@ -111,18 +78,6 @@ const mockVenues: Venue[] = [
     lng: 103.7649,
     crowdPercent: 50,
     crowdLevel: "Moderate",
-    source: "Mock",
-    lastUpdated: new Date().toISOString(),
-  },
-  {
-    id: "sentosa-beach-station",
-    name: "Sentosa Beach Station",
-    category: "Attraction",
-    address: "50 Beach Station Rd",
-    lat: 1.2494,
-    lng: 103.8303,
-    crowdPercent: 65,
-    crowdLevel: "High",
     source: "Mock",
     lastUpdated: new Date().toISOString(),
   },
@@ -170,7 +125,30 @@ async function getTransportVenues(): Promise<Venue[]> {
   return cachedTransportVenues;
 }
 
+// This feed updates every 1 minute per LTA's docs; cache 1 minute to stay
+// close to that freshness without calling on every single incoming request.
+const CARPARK_CACHE_TTL_MS = 60 * 1000;
+let cachedCarparkVenues: Venue[] = [];
+let carparkCacheTimestamp = 0;
+
+async function getCarparkVenues(): Promise<Venue[]> {
+  const isFresh = Date.now() - carparkCacheTimestamp < CARPARK_CACHE_TTL_MS && cachedCarparkVenues.length > 0;
+  if (isFresh) return cachedCarparkVenues;
+
+  try {
+    cachedCarparkVenues = await fetchLtaCarparkVenues();
+    carparkCacheTimestamp = Date.now();
+  } catch (err) {
+    console.error("LTA carpark fetch failed, serving stale/empty carpark data:", err);
+  }
+
+  return cachedCarparkVenues;
+}
+
 export async function getVenues(): Promise<Venue[]> {
-  const transportVenues = await getTransportVenues();
-  return spreadOverlappingVenues([...mockVenues, ...transportVenues]);
+  const [transportVenues, carparkVenues] = await Promise.all([
+    getTransportVenues(),
+    getCarparkVenues(),
+  ]);
+  return spreadOverlappingVenues([...mockVenues, ...transportVenues, ...carparkVenues]);
 }
