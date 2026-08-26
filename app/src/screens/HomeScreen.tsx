@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import * as Location from "expo-location";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/types";
 import { Venue } from "../types/venue";
@@ -34,6 +35,7 @@ function isWithinRegion(venue: Venue, region: MapRegion): boolean {
 }
 
 export default function HomeScreen({ navigation }: Props) {
+  const insets = useSafeAreaInsets();
   const [venues, setVenues] = useState<Venue[]>([]);
   const [region, setRegion] = useState<MapRegion | null>(null);
   const [loading, setLoading] = useState(true);
@@ -90,6 +92,8 @@ export default function HomeScreen({ navigation }: Props) {
         onRegionChange={setRegion}
       />
 
+      <Text style={[styles.brand, { top: insets.top + 8 }]}>Crowdy</Text>
+
       <View style={styles.sheet}>
         <View style={styles.dragHandle} />
         <Text style={styles.sheetTitle}>Nearby</Text>
@@ -127,6 +131,15 @@ const SHEET_BG = "#121212";
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: SHEET_BG },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
+  brand: {
+    position: "absolute",
+    left: 12,
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#EB5757",
+    textShadowColor: "rgba(255,255,255,0.9)",
+    textShadowRadius: 3,
+  },
   sheet: {
     flex: 1,
     backgroundColor: SHEET_BG,
