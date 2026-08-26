@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { Venue, CrowdLevel } from "../types/venue";
 
 interface LtaCarparkRecord {
@@ -27,11 +29,32 @@ function slugify(name: string): string {
 
 // LTA gives no total-capacity figure for these carparks, so there's no
 // official denominator to compute "% full" against. Instead we track the
-// highest AvailableLots ever observed per carpark (in-memory, since this
-// process started) as a proxy for capacity - self-correcting the longer the
-// server runs, but inaccurate/flat at 0% right after a restart until enough
-// variation has been seen. This is an approximation, not official data.
-const observedMaxLots = new Map<string, number>();
+// highest AvailableLots ever observed per carpark as a proxy for capacity -
+// self-correcting the longer this history accumulates. Persisted to a JSON
+// file (not just in-memory) so it survives server restarts - a plain object
+// on disk is enough at this scale (39 carparks); revisit if this grows into
+// something that needs concurrent writers or querying.
+const HISTORY_FILE = path.join(__dirname, "..", "..", "data", "carpark-history.json");
+
+function loadObservedMax(): Map<string, number> {
+  try {
+    const raw = fs.readFileSync(HISTORY_FILE, "utf-8");
+    return new Map(Object.entries(JSON.parse(raw) as Record<string, number>));
+  } catch {
+    return new Map(); // no file yet on first run, or unreadable - start fresh
+  }
+}
+
+function saveObservedMax(map: Map<string, number>): void {
+  try {
+    fs.mkdirSync(path.dirname(HISTORY_FILE), { recursive: true });
+    fs.writeFileSync(HISTORY_FILE, JSON.stringify(Object.fromEntries(map), null, 2));
+  } catch (err) {
+    console.error("Failed to persist carpark history:", err);
+  }
+}
+
+const observedMaxLots = loadObservedMax();
 
 function estimateCrowd(carParkId: string, availableLots: number): { crowdPercent: number; crowdLevel: CrowdLevel } {
   const previousMax = observedMaxLots.get(carParkId) ?? availableLots;
@@ -66,7 +89,7 @@ export async function fetchLtaCarparkVenues(): Promise<Venue[]> {
   const data = (await res.json()) as { value: LtaCarparkRecord[] };
   const now = new Date().toISOString();
 
-  return data.value
+  const venues = data.value
     .filter((r) => r.Agency === "LTA")
     .map((r) => {
       const [lat, lng] = r.Location.split(" ").map(Number);
@@ -85,4 +108,7 @@ export async function fetchLtaCarparkVenues(): Promise<Venue[]> {
       };
       return venue;
     });
+
+  saveObservedMax(observedMaxLots); // once per batch, not once per record
+  return venues;
 }

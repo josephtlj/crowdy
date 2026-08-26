@@ -16,6 +16,7 @@ import { MapRegion } from "../types/region";
 import { getNearbyVenues } from "../services/api";
 import { haversineKm } from "../services/distance";
 import { CrowdBadge } from "../components/CrowdBadge";
+import { CategoryPin } from "../components/CategoryPin";
 import { VenueMap } from "../components/VenueMap";
 
 // Marina Bay, used only if the user denies location permission.
@@ -89,47 +90,78 @@ export default function HomeScreen({ navigation }: Props) {
         onRegionChange={setRegion}
       />
 
-      <FlatList
-        style={styles.list}
-        data={visibleVenues}
-        keyExtractor={(item) => item.id}
-        ListEmptyComponent={
-          <Text style={styles.empty}>No venues in view - pan or zoom out the map.</Text>
-        }
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.row}
-            onPress={() => navigation.navigate("Detail", { venueId: item.id })}
-          >
-            <View style={styles.rowText}>
-              <Text style={styles.name}>{item.name}</Text>
-              <Text style={styles.meta}>
-                {item.category} · {item.distanceKm?.toFixed(1)} km away
-              </Text>
-            </View>
-            <CrowdBadge level={item.crowdLevel} />
-          </TouchableOpacity>
-        )}
-      />
+      <View style={styles.sheet}>
+        <View style={styles.dragHandle} />
+        <Text style={styles.sheetTitle}>Nearby</Text>
+
+        <FlatList
+          style={styles.list}
+          data={visibleVenues}
+          keyExtractor={(item) => item.id}
+          ListEmptyComponent={
+            <Text style={styles.empty}>No venues in view - pan or zoom out the map.</Text>
+          }
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.row}
+              onPress={() => navigation.navigate("Detail", { venueId: item.id })}
+            >
+              <CategoryPin category={item.category} size={32} />
+              <View style={styles.rowText}>
+                <Text style={styles.name}>{item.name}</Text>
+                <Text style={styles.meta}>
+                  {item.category} · {item.distanceKm?.toFixed(1)} km away
+                </Text>
+              </View>
+              <CrowdBadge level={item.crowdLevel} />
+            </TouchableOpacity>
+          )}
+        />
+      </View>
     </View>
   );
 }
 
+const SHEET_BG = "#121212";
+
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: SHEET_BG },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
+  sheet: {
+    flex: 1,
+    backgroundColor: SHEET_BG,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    marginTop: -20,
+    paddingTop: 8,
+  },
+  dragHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#444",
+    alignSelf: "center",
+    marginBottom: 10,
+  },
+  sheetTitle: {
+    color: "white",
+    fontSize: 18,
+    fontWeight: "700",
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
   list: { flex: 1 },
   empty: { textAlign: "center", padding: 24, color: "#888" },
   row: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    gap: 12,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#ddd",
+    borderBottomColor: "#2a2a2a",
   },
-  rowText: { flex: 1, paddingRight: 12 },
-  name: { fontSize: 16, fontWeight: "600" },
-  meta: { fontSize: 13, color: "#666", marginTop: 2 },
+  rowText: { flex: 1 },
+  name: { fontSize: 16, fontWeight: "600", color: "white" },
+  meta: { fontSize: 13, color: "#999", marginTop: 2 },
 });

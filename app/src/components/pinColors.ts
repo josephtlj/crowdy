@@ -1,16 +1,28 @@
 import { VenueCategory } from "../types/venue";
 
-// Colours the map PIN by venue type (what kind of place it is) - separate
-// from CrowdBadge, which colours by crowd LEVEL (how busy it is). As more
-// categories are added (carpark, general areas, ...) give each one an entry
-// here rather than reusing an existing colour, so pin type stays legible.
+// Colours the map pin/list badge by venue TYPE (what kind of place it is) -
+// separate from CrowdBadge, which colours by crowd LEVEL (how busy it is).
+// Labels mimic Singabus's 2-letter stop-code badges. As more categories are
+// added (carpark, general areas, ...) give each one its own colour+label
+// here rather than reusing an existing one, so type stays visually legible.
 export const PIN_COLORS: Record<VenueCategory, string> = {
-  MRT: "blue",
-  LRT: "orange",
-  Mall: "red",
-  Attraction: "purple",
-  Hawker: "green",
-  Gym: "cyan",
-  Park: "green",
-  Worship: "yellow",
+  MRT: "#2F6FED",
+  LRT: "#F2994A",
+  Mall: "#EB5757",
+  Attraction: "#9B51E0",
+  Hawker: "#27AE60",
+  Gym: "#56CCF2",
+  Park: "#219653",
+  Worship: "#F2C94C",
+};
+
+export const PIN_LABELS: Record<VenueCategory, string> = {
+  MRT: "MR",
+  LRT: "LR",
+  Mall: "ML",
+  Attraction: "AT",
+  Hawker: "HK",
+  Gym: "GY",
+  Park: "PK",
+  Worship: "WS",
 };
