@@ -1,6 +1,7 @@
-import React, { useEffect, useRef } from "react";
-import { StyleSheet, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { StyleSheet, View, TouchableOpacity, Text, Alert } from "react-native";
 import MapView, { Marker, Region, MapPressEvent } from "react-native-maps";
+import * as Location from "expo-location";
 import { Venue } from "../types/venue";
 import { MapRegion } from "../types/region";
 import { CategoryPin } from "./CategoryPin";
@@ -25,11 +26,12 @@ export function VenueMap({
   onRegionChange,
 }: Props) {
   const mapRef = useRef<MapView>(null);
-  // Tracks the map's own last known zoom level so centring on a selected
-  // venue can keep whatever zoom the User was already at, instead of
-  // resetting it - onRegionChange only reports upward, it isn't fed back
-  // into the (uncontrolled) map, so this is the map's own memory of it.
+  // Tracks the map's own last known zoom level so centring (on a selected
+  // venue, or on recentring) can keep whatever zoom the User was already
+  // at, instead of resetting it - onRegionChange only reports upward, it
+  // isn't fed back into the (uncontrolled) map, so this is its own memory.
   const lastRegionRef = useRef<MapRegion>(initialRegion);
+  const [recentring, setRecentring] = useState(false);
 
   useEffect(() => {
     if (!selectedVenueId) return;
@@ -64,43 +66,99 @@ export function VenueMap({
     onDeselect();
   };
 
+  const handleRecentre = async () => {
+    setRecentring(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Location access needed",
+          "Enable location access for Crowdy in Settings to recentre the map."
+        );
+        return;
+      }
+      const position = await Location.getCurrentPositionAsync({});
+      const { latitudeDelta, longitudeDelta } = lastRegionRef.current;
+      mapRef.current?.animateToRegion(
+        {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          latitudeDelta,
+          longitudeDelta,
+        },
+        300
+      );
+    } finally {
+      setRecentring(false);
+    }
+  };
+
   const hasSelection = selectedVenueId !== null;
 
   return (
-    <MapView
-      ref={mapRef}
-      style={styles.map}
-      initialRegion={initialRegion}
-      showsUserLocation
-      onRegionChangeComplete={handleRegionChangeComplete}
-      onPress={handleMapPress}
-    >
-      {venues.map((venue) => {
-        const isDimmed = hasSelection && venue.id !== selectedVenueId;
-        return (
-          <Marker
-            key={venue.id}
-            coordinate={{ latitude: venue.lat, longitude: venue.lng }}
-            anchor={{ x: 0.5, y: 1 }}
-            onPress={() => onSelectVenue(venue.id)}
-            // No title/description: the native callout bubble this would
-            // otherwise show is redundant now that selecting a venue expands
-            // its info inline in the list below instead.
-            // Custom marker views need this while their appearance is changing
-            // (dimming in/out on selection) - off the rest of the time to keep
-            // ~200 markers cheap to redraw.
-            tracksViewChanges={hasSelection}
-          >
-            <View style={{ opacity: isDimmed ? 0.3 : 1 }}>
-              <CategoryPin category={venue.category} pointer />
-            </View>
-          </Marker>
-        );
-      })}
-    </MapView>
+    <View style={styles.wrapper}>
+      <MapView
+        ref={mapRef}
+        style={styles.map}
+        initialRegion={initialRegion}
+        showsUserLocation
+        onRegionChangeComplete={handleRegionChangeComplete}
+        onPress={handleMapPress}
+      >
+        {venues.map((venue) => {
+          const isDimmed = hasSelection && venue.id !== selectedVenueId;
+          return (
+            <Marker
+              key={venue.id}
+              coordinate={{ latitude: venue.lat, longitude: venue.lng }}
+              anchor={{ x: 0.5, y: 1 }}
+              onPress={() => onSelectVenue(venue.id)}
+              // No title/description: the native callout bubble this would
+              // otherwise show is redundant now that selecting a venue expands
+              // its info inline in the list below instead.
+              // Custom marker views need this while their appearance is changing
+              // (dimming in/out on selection) - off the rest of the time to keep
+              // ~200 markers cheap to redraw.
+              tracksViewChanges={hasSelection}
+            >
+              <View style={{ opacity: isDimmed ? 0.3 : 1 }}>
+                <CategoryPin category={venue.category} pointer />
+              </View>
+            </Marker>
+          );
+        })}
+      </MapView>
+
+      <TouchableOpacity
+        style={styles.recentreButton}
+        onPress={handleRecentre}
+        disabled={recentring}
+        accessibilityLabel="Recentre map on my location"
+      >
+        <Text style={styles.recentreIcon}>⌖</Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  map: { width: "100%", height: "45%" },
+  wrapper: { width: "100%", height: "45%" },
+  map: { width: "100%", height: "100%" },
+  recentreButton: {
+    position: "absolute",
+    right: 14,
+    bottom: 14,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "white",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  recentreIcon: { fontSize: 20, color: "#22262b" },
 });
