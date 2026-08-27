@@ -98,14 +98,6 @@ export function VenueMap({
 
   const hasSelection = selectedVenueId !== null;
 
-  // The selected marker must draw on top of dimmed ones, or a later,
-  // greyed-out pin can visually cover the very pin the User just tapped.
-  // zIndex alone isn't reliably honoured cross-platform, so it's also
-  // reordered to render last (later markers draw on top on both platforms).
-  const orderedVenues = hasSelection
-    ? [...venues.filter((v) => v.id !== selectedVenueId), ...venues.filter((v) => v.id === selectedVenueId)]
-    : venues;
-
   return (
     <View style={styles.wrapper}>
       <MapView
@@ -118,7 +110,13 @@ export function VenueMap({
         userInterfaceStyle={mode} // Apple Maps (iOS default provider)
         customMapStyle={mode === "dark" ? DARK_MAP_STYLE : []} // Google Maps (Android)
       >
-        {orderedVenues.map((venue) => {
+        {/* venues stays in its original, stable order here - reordering it
+            by selection (to force the selected pin to draw last) previously
+            caused react-native-maps to sometimes treat the moved marker as
+            removed-and-re-added rather than updated, leaving it invisible
+            until an unrelated redraw (pan, reselect) forced it back. zIndex
+            alone handles draw order without touching array position. */}
+        {venues.map((venue) => {
           const isSelected = venue.id === selectedVenueId;
           const isDimmed = hasSelection && !isSelected;
           return (
