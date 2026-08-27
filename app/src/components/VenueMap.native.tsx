@@ -142,12 +142,14 @@ export function VenueMap({
 }
 
 const styles = StyleSheet.create({
-  wrapper: { width: "100%", height: "45%" },
+  wrapper: { width: "100%", height: "58%" },
   map: { width: "100%", height: "100%" },
   recentreButton: {
     position: "absolute",
     right: 14,
-    bottom: 14,
+    // The sheet below overlaps the map by 20 (its own negative marginTop),
+    // so this needs to clear that or the sheet's rounded corner covers it.
+    bottom: 34,
     width: 42,
     height: 42,
     borderRadius: 21,

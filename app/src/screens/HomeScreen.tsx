@@ -19,6 +19,7 @@ import { haversineKm } from "../services/distance";
 import { CrowdBadge } from "../components/CrowdBadge";
 import { CategoryPin } from "../components/CategoryPin";
 import { VenueMap } from "../components/VenueMap";
+import { TabBar } from "../components/TabBar";
 
 // Marina Bay, used only if the user denies location permission.
 const FALLBACK_REGION = { lat: 1.2838, lng: 103.8591 };
@@ -104,7 +105,7 @@ export default function HomeScreen({ navigation }: Props) {
       <Text style={[styles.brand, { top: insets.top + 8 }]}>Crowdy</Text>
 
       <View style={styles.sheet}>
-        <Text style={styles.sheetTitle}>Nearby</Text>
+        <TabBar active="areas" />
 
         <FlatList
           style={styles.list}
@@ -177,13 +178,6 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     marginTop: -20,
     paddingTop: 8,
-  },
-  sheetTitle: {
-    color: "white",
-    fontSize: 18,
-    fontWeight: "700",
-    paddingHorizontal: 16,
-    paddingBottom: 8,
   },
   list: { flex: 1 },
   empty: { textAlign: "center", padding: 24, color: "#888" },
