@@ -6,6 +6,7 @@ import { MapRegion } from "../types/region";
 interface Props {
   initialRegion: MapRegion;
   venues: Venue[];
+  selectedVenueId: string | null;
   onSelectVenue: (venueId: string) => void;
   onRegionChange: (region: MapRegion) => void;
 }

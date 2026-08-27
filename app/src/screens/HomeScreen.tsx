@@ -39,6 +39,13 @@ export default function HomeScreen({ navigation }: Props) {
   const [venues, setVenues] = useState<Venue[]>([]);
   const [region, setRegion] = useState<MapRegion | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null);
+
+  // Tapping the already-selected pin/row again deselects it, matching
+  // ordinary toggle-select behaviour.
+  const toggleSelection = (venueId: string) => {
+    setSelectedVenueId((current) => (current === venueId ? null : venueId));
+  };
 
   useEffect(() => {
     (async () => {
@@ -88,38 +95,56 @@ export default function HomeScreen({ navigation }: Props) {
       <VenueMap
         initialRegion={region}
         venues={venues}
-        onSelectVenue={(venueId) => navigation.navigate("Detail", { venueId })}
+        selectedVenueId={selectedVenueId}
+        onSelectVenue={toggleSelection}
         onRegionChange={setRegion}
       />
 
       <Text style={[styles.brand, { top: insets.top + 8 }]}>Crowdy</Text>
 
       <View style={styles.sheet}>
-        <View style={styles.dragHandle} />
         <Text style={styles.sheetTitle}>Nearby</Text>
 
         <FlatList
           style={styles.list}
           data={visibleVenues}
           keyExtractor={(item) => item.id}
+          extraData={selectedVenueId}
           ListEmptyComponent={
             <Text style={styles.empty}>No venues in view - pan or zoom out the map.</Text>
           }
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.row}
-              onPress={() => navigation.navigate("Detail", { venueId: item.id })}
-            >
-              <CategoryPin category={item.category} size={32} />
-              <View style={styles.rowText}>
-                <Text style={styles.name}>{item.name}</Text>
-                <Text style={styles.meta}>
-                  {item.category} · {item.distanceKm?.toFixed(1)} km away
-                </Text>
+          renderItem={({ item }) => {
+            const isSelected = item.id === selectedVenueId;
+            return (
+              <View style={styles.rowWrapper}>
+                <TouchableOpacity style={styles.row} onPress={() => toggleSelection(item.id)}>
+                  <CategoryPin category={item.category} size={32} />
+                  <View style={styles.rowText}>
+                    <Text style={styles.name}>{item.name}</Text>
+                    <Text style={styles.meta}>
+                      {item.category} · {item.distanceKm?.toFixed(1)} km away
+                    </Text>
+                  </View>
+                  <CrowdBadge level={item.crowdLevel} />
+                </TouchableOpacity>
+
+                {isSelected && (
+                  <View style={styles.preview}>
+                    <Text style={styles.previewText}>
+                      {item.crowdPercent}% of peak · updated{" "}
+                      {new Date(item.lastUpdated).toLocaleTimeString()} · {item.source}
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.previewButton}
+                      onPress={() => navigation.navigate("Detail", { venueId: item.id })}
+                    >
+                      <Text style={styles.previewButtonText}>View Alternatives &rsaquo;</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
-              <CrowdBadge level={item.crowdLevel} />
-            </TouchableOpacity>
-          )}
+            );
+          }}
         />
       </View>
     </View>
@@ -148,14 +173,6 @@ const styles = StyleSheet.create({
     marginTop: -20,
     paddingTop: 8,
   },
-  dragHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#444",
-    alignSelf: "center",
-    marginBottom: 10,
-  },
   sheetTitle: {
     color: "white",
     fontSize: 18,
@@ -165,16 +182,26 @@ const styles = StyleSheet.create({
   },
   list: { flex: 1 },
   empty: { textAlign: "center", padding: 24, color: "#888" },
+  rowWrapper: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#2a2a2a",
+  },
   row: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#2a2a2a",
   },
   rowText: { flex: 1 },
   name: { fontSize: 16, fontWeight: "600", color: "white" },
   meta: { fontSize: 13, color: "#999", marginTop: 2 },
+  preview: {
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    paddingLeft: 60,
+  },
+  previewText: { fontSize: 12.5, color: "#aaa", marginBottom: 8 },
+  previewButton: { alignSelf: "flex-start" },
+  previewButtonText: { fontSize: 13.5, color: "#5B9EF5", fontWeight: "600" },
 });
