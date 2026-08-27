@@ -44,6 +44,10 @@ export default function HomeScreen({ navigation }: Props) {
   const [region, setRegion] = useState<MapRegion | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null);
+  // "Areas" and "Saved" both stay on this screen - only the list beneath the
+  // map swaps, matching the Singabus-style inline tab switch rather than
+  // navigating to a second page.
+  const [activeTab, setActiveTab] = useState<TabKey>("areas");
 
   // Tapping the already-selected pin/row again deselects it, matching
   // ordinary toggle-select behaviour.
@@ -52,10 +56,9 @@ export default function HomeScreen({ navigation }: Props) {
   };
 
   const handleTabPress = (key: TabKey) => {
-    if (key === "areas") return; // already here
-    if (key === "favourites") return navigation.navigate("Favourites");
     if (key === "settings") return navigation.navigate("Settings");
-    Alert.alert("Coming soon", "Search hasn't been built yet."); // key === "search"
+    if (key === "search") return Alert.alert("Coming soon", "Search hasn't been built yet.");
+    setActiveTab(key); // "areas" or "saved"
   };
 
   useEffect(() => {
@@ -93,6 +96,11 @@ export default function HomeScreen({ navigation }: Props) {
       .sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0));
   }, [venues, region]);
 
+  // No real saving mechanism exists yet (no favourite toggle anywhere in the
+  // app) - this stays empty until that's built, rather than showing mock data.
+  const savedVenues: Venue[] = [];
+  const listData = activeTab === "saved" ? savedVenues : visibleVenues;
+
   if (loading || !region) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
@@ -115,16 +123,18 @@ export default function HomeScreen({ navigation }: Props) {
       <Text style={[styles.brand, { top: insets.top + 8 }]}>Crowdy</Text>
 
       <View style={[styles.sheet, { backgroundColor: colors.background }]}>
-        <TabBar active="areas" onPress={handleTabPress} />
+        <TabBar active={activeTab} onPress={handleTabPress} />
 
         <FlatList
           style={styles.list}
-          data={visibleVenues}
+          data={listData}
           keyExtractor={(item) => item.id}
           extraData={selectedVenueId}
           ListEmptyComponent={
             <Text style={[styles.empty, { color: colors.textMuted }]}>
-              No venues in view - pan or zoom out the map.
+              {activeTab === "saved"
+                ? "No saved areas."
+                : "No venues in view - pan or zoom out the map."}
             </Text>
           }
           renderItem={({ item }) => {

@@ -3,11 +3,11 @@ import { View, TouchableOpacity, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../theme/ThemeContext";
 
-export type TabKey = "areas" | "favourites" | "search" | "settings";
+export type TabKey = "areas" | "saved" | "search" | "settings";
 
 const TABS: { key: TabKey; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { key: "areas", label: "Areas", icon: "navigate-outline" },
-  { key: "favourites", label: "Favourites", icon: "heart-outline" },
+  { key: "saved", label: "Saved", icon: "heart-outline" },
   { key: "search", label: "Search", icon: "search-outline" },
   { key: "settings", label: "Settings", icon: "settings-outline" },
 ];
