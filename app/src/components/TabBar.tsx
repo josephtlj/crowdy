@@ -1,6 +1,7 @@
 import React from "react";
-import { View, TouchableOpacity, Text, StyleSheet, Alert } from "react-native";
+import { View, TouchableOpacity, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../theme/ThemeContext";
 
 export type TabKey = "areas" | "favourites" | "search" | "settings";
 
@@ -11,30 +12,28 @@ const TABS: { key: TabKey; label: string; icon: keyof typeof Ionicons.glyphMap }
   { key: "settings", label: "Settings", icon: "settings-outline" },
 ];
 
-const ACCENT = "#EB5757";
-const INACTIVE = "#8a8a8a";
+interface Props {
+  active: TabKey;
+  onPress: (key: TabKey) => void;
+}
 
-// Favourites/Search/Settings are placeholders - not built yet. Tapping one
-// gives a small acknowledgement rather than doing nothing, so the button
-// doesn't feel broken while it's unimplemented.
-export function TabBar({ active }: { active: TabKey }) {
+export function TabBar({ active, onPress }: Props) {
+  const { colors } = useTheme();
   return (
-    <View style={styles.bar}>
+    <View style={[styles.bar, { borderBottomColor: colors.border }]}>
       {TABS.map((tab) => {
         const isActive = tab.key === active;
         return (
-          <TouchableOpacity
-            key={tab.key}
-            style={styles.tab}
-            onPress={() => {
-              if (!isActive) {
-                Alert.alert("Coming soon", `${tab.label} hasn't been built yet.`);
-              }
-            }}
-          >
-            <Ionicons name={tab.icon} size={21} color={isActive ? ACCENT : INACTIVE} />
-            <Text style={[styles.label, isActive && styles.labelActive]}>{tab.label}</Text>
-            {isActive && <View style={styles.underline} />}
+          <TouchableOpacity key={tab.key} style={styles.tab} onPress={() => onPress(tab.key)}>
+            <Ionicons
+              name={tab.icon}
+              size={21}
+              color={isActive ? colors.accent : colors.textMuted}
+            />
+            <Text style={[styles.label, { color: isActive ? colors.accent : colors.textMuted }]}>
+              {tab.label}
+            </Text>
+            {isActive && <View style={[styles.underline, { backgroundColor: colors.accent }]} />}
           </TouchableOpacity>
         );
       })}
@@ -46,7 +45,6 @@ const styles = StyleSheet.create({
   bar: {
     flexDirection: "row",
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#2a2a2a",
   },
   tab: {
     flex: 1,
@@ -55,14 +53,12 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 10,
   },
-  label: { fontSize: 11, color: INACTIVE },
-  labelActive: { color: ACCENT, fontWeight: "600" },
+  label: { fontSize: 11 },
   underline: {
     position: "absolute",
     bottom: 0,
     height: 2,
     width: "55%",
-    backgroundColor: ACCENT,
     borderRadius: 1,
   },
 });

@@ -5,6 +5,8 @@ import * as Location from "expo-location";
 import { Venue } from "../types/venue";
 import { MapRegion } from "../types/region";
 import { CategoryPin } from "./CategoryPin";
+import { useTheme } from "../theme/ThemeContext";
+import { DARK_MAP_STYLE } from "../theme/darkMapStyle";
 
 interface Props {
   initialRegion: MapRegion;
@@ -25,6 +27,7 @@ export function VenueMap({
   onDeselect,
   onRegionChange,
 }: Props) {
+  const { mode } = useTheme();
   const mapRef = useRef<MapView>(null);
   // Tracks the map's own last known zoom level so centring (on a selected
   // venue, or on recentring) can keep whatever zoom the User was already
@@ -95,6 +98,14 @@ export function VenueMap({
 
   const hasSelection = selectedVenueId !== null;
 
+  // The selected marker must draw on top of dimmed ones, or a later,
+  // greyed-out pin can visually cover the very pin the User just tapped.
+  // zIndex alone isn't reliably honoured cross-platform, so it's also
+  // reordered to render last (later markers draw on top on both platforms).
+  const orderedVenues = hasSelection
+    ? [...venues.filter((v) => v.id !== selectedVenueId), ...venues.filter((v) => v.id === selectedVenueId)]
+    : venues;
+
   return (
     <View style={styles.wrapper}>
       <MapView
@@ -104,14 +115,18 @@ export function VenueMap({
         showsUserLocation
         onRegionChangeComplete={handleRegionChangeComplete}
         onPress={handleMapPress}
+        userInterfaceStyle={mode} // Apple Maps (iOS default provider)
+        customMapStyle={mode === "dark" ? DARK_MAP_STYLE : []} // Google Maps (Android)
       >
-        {venues.map((venue) => {
-          const isDimmed = hasSelection && venue.id !== selectedVenueId;
+        {orderedVenues.map((venue) => {
+          const isSelected = venue.id === selectedVenueId;
+          const isDimmed = hasSelection && !isSelected;
           return (
             <Marker
               key={venue.id}
               coordinate={{ latitude: venue.lat, longitude: venue.lng }}
               anchor={{ x: 0.5, y: 1 }}
+              zIndex={isSelected ? 1 : 0}
               onPress={() => onSelectVenue(venue.id)}
               // No title/description: the native callout bubble this would
               // otherwise show is redundant now that selecting a venue expands

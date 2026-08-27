@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Platform,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import * as Location from "expo-location";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,7 +20,8 @@ import { haversineKm } from "../services/distance";
 import { CrowdBadge } from "../components/CrowdBadge";
 import { CategoryPin } from "../components/CategoryPin";
 import { VenueMap } from "../components/VenueMap";
-import { TabBar } from "../components/TabBar";
+import { TabBar, TabKey } from "../components/TabBar";
+import { useTheme } from "../theme/ThemeContext";
 
 // Marina Bay, used only if the user denies location permission.
 const FALLBACK_REGION = { lat: 1.2838, lng: 103.8591 };
@@ -37,6 +39,7 @@ function isWithinRegion(venue: Venue, region: MapRegion): boolean {
 
 export default function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const [venues, setVenues] = useState<Venue[]>([]);
   const [region, setRegion] = useState<MapRegion | null>(null);
   const [loading, setLoading] = useState(true);
@@ -46,6 +49,13 @@ export default function HomeScreen({ navigation }: Props) {
   // ordinary toggle-select behaviour.
   const toggleSelection = (venueId: string) => {
     setSelectedVenueId((current) => (current === venueId ? null : venueId));
+  };
+
+  const handleTabPress = (key: TabKey) => {
+    if (key === "areas") return; // already here
+    if (key === "favourites") return navigation.navigate("Favourites");
+    if (key === "settings") return navigation.navigate("Settings");
+    Alert.alert("Coming soon", "Search hasn't been built yet."); // key === "search"
   };
 
   useEffect(() => {
@@ -85,14 +95,14 @@ export default function HomeScreen({ navigation }: Props) {
 
   if (loading || !region) {
     return (
-      <View style={styles.centered}>
+      <View style={[styles.centered, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <VenueMap
         initialRegion={region}
         venues={venues}
@@ -104,8 +114,8 @@ export default function HomeScreen({ navigation }: Props) {
 
       <Text style={[styles.brand, { top: insets.top + 8 }]}>Crowdy</Text>
 
-      <View style={styles.sheet}>
-        <TabBar active="areas" />
+      <View style={[styles.sheet, { backgroundColor: colors.background }]}>
+        <TabBar active="areas" onPress={handleTabPress} />
 
         <FlatList
           style={styles.list}
@@ -113,17 +123,19 @@ export default function HomeScreen({ navigation }: Props) {
           keyExtractor={(item) => item.id}
           extraData={selectedVenueId}
           ListEmptyComponent={
-            <Text style={styles.empty}>No venues in view - pan or zoom out the map.</Text>
+            <Text style={[styles.empty, { color: colors.textMuted }]}>
+              No venues in view - pan or zoom out the map.
+            </Text>
           }
           renderItem={({ item }) => {
             const isSelected = item.id === selectedVenueId;
             return (
-              <View style={styles.rowWrapper}>
+              <View style={[styles.rowWrapper, { borderBottomColor: colors.border }]}>
                 <TouchableOpacity style={styles.row} onPress={() => toggleSelection(item.id)}>
                   <CategoryPin category={item.category} size={32} />
                   <View style={styles.rowText}>
-                    <Text style={styles.name}>{item.name}</Text>
-                    <Text style={styles.meta}>
+                    <Text style={[styles.name, { color: colors.text }]}>{item.name}</Text>
+                    <Text style={[styles.meta, { color: colors.textMuted }]}>
                       {item.category} · {item.distanceKm?.toFixed(1)} km away
                     </Text>
                   </View>
@@ -132,7 +144,7 @@ export default function HomeScreen({ navigation }: Props) {
 
                 {isSelected && (
                   <View style={styles.preview}>
-                    <Text style={styles.previewText}>
+                    <Text style={[styles.previewText, { color: colors.textMuted }]}>
                       {item.crowdPercent}% of peak · updated{" "}
                       {new Date(item.lastUpdated).toLocaleTimeString()} · {item.source}
                     </Text>
@@ -157,10 +169,8 @@ export default function HomeScreen({ navigation }: Props) {
   );
 }
 
-const SHEET_BG = "#121212";
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: SHEET_BG },
+  container: { flex: 1 },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
   brand: {
     position: "absolute",
@@ -173,17 +183,16 @@ const styles = StyleSheet.create({
   },
   sheet: {
     flex: 1,
-    backgroundColor: SHEET_BG,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     marginTop: -20,
     paddingTop: 8,
+    overflow: "hidden",
   },
   list: { flex: 1 },
-  empty: { textAlign: "center", padding: 24, color: "#888" },
+  empty: { textAlign: "center", padding: 24 },
   rowWrapper: {
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#2a2a2a",
   },
   row: {
     flexDirection: "row",
@@ -193,14 +202,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   rowText: { flex: 1 },
-  name: { fontSize: 16, fontWeight: "600", color: "white" },
-  meta: { fontSize: 13, color: "#999", marginTop: 2 },
+  name: { fontSize: 16, fontWeight: "600" },
+  meta: { fontSize: 13, marginTop: 2 },
   preview: {
     paddingHorizontal: 16,
     paddingBottom: 14,
     paddingLeft: 60,
   },
-  previewText: { fontSize: 12.5, color: "#aaa", marginBottom: 8 },
+  previewText: { fontSize: 12.5, marginBottom: 8 },
   previewButton: { alignSelf: "flex-start" },
   previewButtonText: { fontSize: 13.5, color: "#5B9EF5", fontWeight: "600" },
 });
