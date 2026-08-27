@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { StyleSheet, View } from "react-native";
-import MapView, { Marker, Region } from "react-native-maps";
+import MapView, { Marker, Region, MapPressEvent } from "react-native-maps";
 import { Venue } from "../types/venue";
 import { MapRegion } from "../types/region";
 import { CategoryPin } from "./CategoryPin";
@@ -36,6 +36,8 @@ export function VenueMap({
     const venue = venues.find((v) => v.id === selectedVenueId);
     if (!venue) return;
     const { latitudeDelta, longitudeDelta } = lastRegionRef.current;
+    // One-time snap to centre on the newly selected venue - after this the
+    // User can freely pan/zoom away again, nothing keeps pulling it back.
     mapRef.current?.animateToRegion(
       { latitude: venue.lat, longitude: venue.lng, latitudeDelta, longitudeDelta },
       300
@@ -52,7 +54,17 @@ export function VenueMap({
     onRegionChange(lastRegionRef.current);
   };
 
-  const isLocked = selectedVenueId !== null;
+  // Tapping a Marker can also bubble up to the MapView's own onPress on
+  // Android (a known react-native-maps quirk) - without this check, that
+  // immediately deselected whatever the Marker press just selected.
+  // nativeEvent.action distinguishes a genuine empty-map tap from one that
+  // originated on a marker.
+  const handleMapPress = (event: MapPressEvent) => {
+    if (event.nativeEvent.action === "marker-press") return;
+    onDeselect();
+  };
+
+  const hasSelection = selectedVenueId !== null;
 
   return (
     <MapView
@@ -61,24 +73,23 @@ export function VenueMap({
       initialRegion={initialRegion}
       showsUserLocation
       onRegionChangeComplete={handleRegionChangeComplete}
-      onPress={onDeselect}
-      scrollEnabled={!isLocked}
-      zoomEnabled={!isLocked}
+      onPress={handleMapPress}
     >
       {venues.map((venue) => {
-        const isDimmed = isLocked && venue.id !== selectedVenueId;
+        const isDimmed = hasSelection && venue.id !== selectedVenueId;
         return (
           <Marker
             key={venue.id}
             coordinate={{ latitude: venue.lat, longitude: venue.lng }}
-            title={venue.name}
-            description={`${venue.category} · ${venue.crowdLevel} crowd`}
             anchor={{ x: 0.5, y: 1 }}
             onPress={() => onSelectVenue(venue.id)}
+            // No title/description: the native callout bubble this would
+            // otherwise show is redundant now that selecting a venue expands
+            // its info inline in the list below instead.
             // Custom marker views need this while their appearance is changing
             // (dimming in/out on selection) - off the rest of the time to keep
             // ~200 markers cheap to redraw.
-            tracksViewChanges={isLocked}
+            tracksViewChanges={hasSelection}
           >
             <View style={{ opacity: isDimmed ? 0.3 : 1 }}>
               <CategoryPin category={venue.category} pointer />
