@@ -19,7 +19,10 @@ export default function DetailScreen({ route, navigation }: Props) {
       const found = await getVenueById(venueId);
       if (found) {
         setVenue(found);
-        setAlternatives(await getAlternatives(found));
+        // MRT/LRT stations are fixed destinations, not interchangeable like
+        // malls/hawker centres - no "alternative" makes sense for them.
+        const isTransit = found.category === "MRT" || found.category === "LRT";
+        setAlternatives(isTransit ? [] : await getAlternatives(found));
       }
       setLoading(false);
     })();

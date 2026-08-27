@@ -8,6 +8,7 @@ interface Props {
   venues: Venue[];
   selectedVenueId: string | null;
   onSelectVenue: (venueId: string) => void;
+  onDeselect: () => void;
   onRegionChange: (region: MapRegion) => void;
 }
 

@@ -97,6 +97,7 @@ export default function HomeScreen({ navigation }: Props) {
         venues={venues}
         selectedVenueId={selectedVenueId}
         onSelectVenue={toggleSelection}
+        onDeselect={() => setSelectedVenueId(null)}
         onRegionChange={setRegion}
       />
 
@@ -134,12 +135,16 @@ export default function HomeScreen({ navigation }: Props) {
                       {item.crowdPercent}% of peak · updated{" "}
                       {new Date(item.lastUpdated).toLocaleTimeString()} · {item.source}
                     </Text>
-                    <TouchableOpacity
-                      style={styles.previewButton}
-                      onPress={() => navigation.navigate("Detail", { venueId: item.id })}
-                    >
-                      <Text style={styles.previewButtonText}>View Alternatives &rsaquo;</Text>
-                    </TouchableOpacity>
+                    {/* MRT/LRT stations are fixed destinations, not interchangeable
+                        like malls/hawker centres - no "alternative" makes sense. */}
+                    {item.category !== "MRT" && item.category !== "LRT" && (
+                      <TouchableOpacity
+                        style={styles.previewButton}
+                        onPress={() => navigation.navigate("Detail", { venueId: item.id })}
+                      >
+                        <Text style={styles.previewButtonText}>View Alternatives &rsaquo;</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 )}
               </View>
