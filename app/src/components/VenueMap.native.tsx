@@ -27,7 +27,7 @@ export function VenueMap({
   onDeselect,
   onRegionChange,
 }: Props) {
-  const { mode } = useTheme();
+  const { mode, colors } = useTheme();
   const mapRef = useRef<MapView>(null);
   // Tracks the map's own last known zoom level so centring (on a selected
   // venue, or on recentring) can keep whatever zoom the User was already
@@ -144,13 +144,12 @@ export function VenueMap({
         onPress={handleMapPress}
         userInterfaceStyle={mode} // Apple Maps (iOS default provider)
         customMapStyle={mode === "dark" ? DARK_MAP_STYLE : []} // Google Maps (Android)
+        // Insets the native map chrome (Apple's legal/attribution link,
+        // Google's logo/compass) away from the map's own edges - without
+        // this, the bottom sheet's -20 overlap (see HomeScreen's marginTop)
+        // clips straight through the attribution text at the bottom-left.
+        mapPadding={{ top: 0, right: 0, bottom: 28, left: 0 }}
       >
-        {/* venues stays in its original, stable order here - reordering it
-            by selection (to force the selected pin to draw last) previously
-            caused react-native-maps to sometimes treat the moved marker as
-            removed-and-re-added rather than updated, leaving it invisible
-            until an unrelated redraw (pan, reselect) forced it back. zIndex
-            alone handles draw order without touching array position. */}
         {venues.map((venue) => {
           const isSelected = venue.id === selectedVenueId;
           const isDimmed = hasSelection && !isSelected;
@@ -159,7 +158,6 @@ export function VenueMap({
               key={venue.id}
               coordinate={{ latitude: venue.lat, longitude: venue.lng }}
               anchor={{ x: 0.5, y: 1 }}
-              zIndex={isSelected ? 1 : 0}
               onPress={() => onSelectVenue(venue.id)}
               // No title/description: the native callout bubble this would
               // otherwise show is redundant now that selecting a venue expands
@@ -175,12 +173,15 @@ export function VenueMap({
       </MapView>
 
       <TouchableOpacity
-        style={styles.recentreButton}
+        style={[
+          styles.recentreButton,
+          { backgroundColor: mode === "dark" ? "#000000" : "#FFFFFF" },
+        ]}
         onPress={handleRecentre}
         disabled={recentring}
         accessibilityLabel="Recentre map on my location"
       >
-        <Text style={styles.recentreIcon}>⌖</Text>
+        <Text style={[styles.recentreIcon, { color: colors.accent }]}>⌖</Text>
       </TouchableOpacity>
     </View>
   );
@@ -198,7 +199,6 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: "white",
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
@@ -207,5 +207,5 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 4,
   },
-  recentreIcon: { fontSize: 20, color: "#22262b" },
+  recentreIcon: { fontSize: 20 },
 });
