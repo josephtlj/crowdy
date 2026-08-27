@@ -1,6 +1,7 @@
 import { NavigationContainer, DefaultTheme, DarkTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
 import { RootStackParamList } from "./src/navigation/types";
 import { ThemeProvider, useTheme } from "./src/theme/ThemeContext";
 import HomeScreen from "./src/screens/HomeScreen";
@@ -19,6 +20,10 @@ function Navigation() {
 
   return (
     <NavigationContainer theme={mode === "dark" ? DarkTheme : DefaultTheme}>
+      {/* Without this the status bar icons (time/wifi/battery) stay dark
+          regardless of app theme - invisible against a dark background on
+          screens like Favourites/Settings that fill the whole top edge. */}
+      <StatusBar style={mode === "dark" ? "light" : "dark"} />
       <Stack.Navigator
         screenOptions={{
           headerStyle: { backgroundColor: colors.surface },

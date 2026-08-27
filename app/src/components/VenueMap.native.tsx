@@ -35,6 +35,15 @@ export function VenueMap({
   // isn't fed back into the (uncontrolled) map, so this is its own memory.
   const lastRegionRef = useRef<MapRegion>(initialRegion);
   const [recentring, setRecentring] = useState(false);
+  // Markers currently allowed to re-snapshot themselves. Previously this was
+  // `hasSelection` applied to all ~200 markers at once - true for the entire
+  // time any pin stayed selected, not just while switching. Forcing every
+  // marker to continuously re-render its native snapshot simultaneously is
+  // what was causing pins to intermittently render blank (the native side
+  // couldn't keep up). Only the marker(s) whose actual appearance changes in
+  // a given transition need this, and only for the brief moment they change.
+  const [trackingIds, setTrackingIds] = useState<Set<string>>(new Set());
+  const prevSelectedRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!selectedVenueId) return;
@@ -47,6 +56,32 @@ export function VenueMap({
       { latitude: venue.lat, longitude: venue.lng, latitudeDelta, longitudeDelta },
       300
     );
+  }, [selectedVenueId, venues]);
+
+  useEffect(() => {
+    const prevSelected = prevSelectedRef.current;
+    const wasSelectionActive = prevSelected !== null;
+    const isSelectionActive = selectedVenueId !== null;
+
+    // Entering or leaving "some pin selected" changes every marker's dim
+    // state at once (all dim in, or all dim out) - everyone needs to
+    // re-snapshot. Switching directly from one selected pin to another only
+    // changes those two markers' appearance; the rest were already dimmed
+    // and stay that way, so they don't need to redraw at all.
+    const ids =
+      wasSelectionActive !== isSelectionActive
+        ? new Set(venues.map((v) => v.id))
+        : new Set([prevSelected, selectedVenueId].filter((id): id is string => id !== null));
+
+    prevSelectedRef.current = selectedVenueId;
+    setTrackingIds(ids);
+
+    if (ids.size === 0) return;
+    // Give the native map a short settling window to capture the new
+    // snapshot, then freeze it again - keeping ~200 markers permanently
+    // trackable is what caused the blank-pin bug in the first place.
+    const timer = setTimeout(() => setTrackingIds(new Set()), 500);
+    return () => clearTimeout(timer);
   }, [selectedVenueId, venues]);
 
   const handleRegionChangeComplete = (region: Region) => {
@@ -129,10 +164,7 @@ export function VenueMap({
               // No title/description: the native callout bubble this would
               // otherwise show is redundant now that selecting a venue expands
               // its info inline in the list below instead.
-              // Custom marker views need this while their appearance is changing
-              // (dimming in/out on selection) - off the rest of the time to keep
-              // ~200 markers cheap to redraw.
-              tracksViewChanges={hasSelection}
+              tracksViewChanges={trackingIds.has(venue.id)}
             >
               <View style={{ opacity: isDimmed ? 0.3 : 1 }}>
                 <CategoryPin category={venue.category} pointer />
