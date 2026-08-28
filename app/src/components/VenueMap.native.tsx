@@ -1,6 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import { StyleSheet, View, TouchableOpacity, Text, Alert } from "react-native";
 import MapView, { Marker, Region, MapPressEvent } from "react-native-maps";
+// Wraps MapView with screen-proximity clustering (built on supercluster) -
+// mixed across all venue categories, purely based on on-screen overlap at
+// the current zoom level, not category or region. Its own `mapRef` prop
+// (not a plain `ref`) is how it exposes the underlying MapView instance.
+import ClusterMapView from "react-native-map-clustering";
 import * as Location from "expo-location";
 import { Venue } from "../types/venue";
 import { MapRegion } from "../types/region";
@@ -135,8 +140,8 @@ export function VenueMap({
 
   return (
     <View style={styles.wrapper}>
-      <MapView
-        ref={mapRef}
+      <ClusterMapView
+        mapRef={mapRef}
         style={styles.map}
         initialRegion={initialRegion}
         showsUserLocation
@@ -149,6 +154,8 @@ export function VenueMap({
         // this, the bottom sheet's -20 overlap (see HomeScreen's marginTop)
         // clips straight through the attribution text at the bottom-left.
         mapPadding={{ top: 0, right: 0, bottom: 28, left: 0 }}
+        clusterColor={colors.accent}
+        clusterTextColor="#FFFFFF"
       >
         {venues.map((venue) => {
           const isSelected = venue.id === selectedVenueId;
@@ -170,7 +177,7 @@ export function VenueMap({
             </Marker>
           );
         })}
-      </MapView>
+      </ClusterMapView>
 
       <TouchableOpacity
         style={[
