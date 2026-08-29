@@ -141,7 +141,9 @@ export function VenueMap({
   return (
     <View style={styles.wrapper}>
       <ClusterMapView
-        mapRef={mapRef}
+        mapRef={(map: MapView) => {
+          mapRef.current = map;
+        }}
         style={styles.map}
         initialRegion={initialRegion}
         showsUserLocation
