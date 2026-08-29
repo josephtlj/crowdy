@@ -10,6 +10,7 @@ import * as Location from "expo-location";
 import { Venue } from "../types/venue";
 import { MapRegion } from "../types/region";
 import { RailLineSegment } from "../types/railLine";
+import { LayerState, isVenueInLayers } from "../types/layers";
 import { CategoryPin } from "./CategoryPin";
 import { StationDot } from "./StationDot";
 import { PIN_COLORS } from "./pinColors";
@@ -27,16 +28,12 @@ interface Props {
   initialRegion: MapRegion;
   venues: Venue[];
   railLines: RailLineSegment[];
+  layers: LayerState;
+  onToggleLayer: (key: keyof LayerState) => void;
   selectedVenueId: string | null;
   onSelectVenue: (venueId: string) => void;
   onDeselect: () => void;
   onRegionChange: (region: MapRegion) => void;
-}
-
-interface LayerState {
-  transit: boolean;
-  malls: boolean;
-  attractions: boolean;
 }
 
 const LAYER_TOGGLES: { key: keyof LayerState; label: string; color: string }[] = [
@@ -51,6 +48,8 @@ export function VenueMap({
   initialRegion,
   venues,
   railLines,
+  layers,
+  onToggleLayer,
   selectedVenueId,
   onSelectVenue,
   onDeselect,
@@ -64,14 +63,6 @@ export function VenueMap({
   // isn't fed back into the (uncontrolled) map, so this is its own memory.
   const lastRegionRef = useRef<MapRegion>(initialRegion);
   const [recentring, setRecentring] = useState(false);
-  // Off by default - like Google/Apple Maps' own "explore" view, nothing
-  // custom is drawn until the User picks a layer, rather than dumping every
-  // category on screen at once.
-  const [layers, setLayers] = useState<LayerState>({
-    transit: false,
-    malls: false,
-    attractions: false,
-  });
   // Markers currently allowed to re-snapshot themselves. Previously this was
   // `hasSelection` applied to all ~200 markers at once - true for the entire
   // time any pin stayed selected, not just while switching. Forcing every
@@ -170,15 +161,7 @@ export function VenueMap({
 
   const hasSelection = selectedVenueId !== null;
 
-  // Only these three categories have a toggle - Hawker/Gym/Park/Worship stay
-  // mock-only and unscoped for now (see the CanGoNow-style scope discussion),
-  // so none of the layers show them.
-  const visibleVenues = venues.filter((venue) => {
-    if (venue.category === "MRT" || venue.category === "LRT") return layers.transit;
-    if (venue.category === "Mall") return layers.malls;
-    if (venue.category === "Attraction") return layers.attractions;
-    return false;
-  });
+  const visibleVenues = venues.filter((venue) => isVenueInLayers(venue, layers));
 
   return (
     <View style={styles.wrapper}>
@@ -219,22 +202,23 @@ export function VenueMap({
           const isSelected = venue.id === selectedVenueId;
           const isDimmed = hasSelection && !isSelected;
           const isTransit = venue.category === "MRT" || venue.category === "LRT";
+          // Temporarily also unclustered for malls, so every mall shows
+          // individually to gauge real clutter before deciding on cluster
+          // styling - attractions are untouched, still pin-shaped + clustered.
+          const usesCrowdDot = isTransit || venue.category === "Mall";
           return (
             <ClusterableMarker
               key={venue.id}
               coordinate={{ latitude: venue.lat, longitude: venue.lng }}
-              anchor={{ x: 0.5, y: isTransit ? 0.5 : 1 }}
+              anchor={{ x: 0.5, y: usesCrowdDot ? 0.5 : 1 }}
               onPress={() => onSelectVenue(venue.id)}
               // No title/description: the native callout bubble this would
               // otherwise show is redundant now that selecting a venue expands
               // its info inline in the list below instead.
               tracksViewChanges={trackingIds.has(venue.id)}
-              // Stations sit on a drawn line - merging them into a generic
-              // count bubble would break that visual context, so they're
-              // never clustered. Malls/attractions still are.
-              cluster={!isTransit}
+              cluster={!usesCrowdDot}
             >
-              {isTransit ? (
+              {usesCrowdDot ? (
                 <StationDot level={venue.crowdLevel} dimmed={isDimmed} />
               ) : (
                 <View style={{ opacity: isDimmed ? 0.3 : 1 }}>
@@ -256,7 +240,7 @@ export function VenueMap({
                 styles.layerButton,
                 { backgroundColor: active ? color : mode === "dark" ? "#000000" : "#FFFFFF" },
               ]}
-              onPress={() => setLayers((prev) => ({ ...prev, [key]: !prev[key] }))}
+              onPress={() => onToggleLayer(key)}
               accessibilityLabel={`Toggle ${label} layer`}
             >
               <Text style={[styles.layerButtonText, { color: active ? "#FFFFFF" : colors.accent }]}>

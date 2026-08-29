@@ -3,11 +3,14 @@ import { View, Text, StyleSheet } from "react-native";
 import { Venue } from "../types/venue";
 import { MapRegion } from "../types/region";
 import { RailLineSegment } from "../types/railLine";
+import { LayerState } from "../types/layers";
 
 interface Props {
   initialRegion: MapRegion;
   venues: Venue[];
   railLines: RailLineSegment[];
+  layers: LayerState;
+  onToggleLayer: (key: keyof LayerState) => void;
   selectedVenueId: string | null;
   onSelectVenue: (venueId: string) => void;
   onDeselect: () => void;

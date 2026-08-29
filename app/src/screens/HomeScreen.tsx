@@ -16,6 +16,7 @@ import { RootStackParamList } from "../navigation/types";
 import { Venue } from "../types/venue";
 import { MapRegion } from "../types/region";
 import { RailLineSegment } from "../types/railLine";
+import { LayerState, isVenueInLayers } from "../types/layers";
 import { getNearbyVenues, getRailLines } from "../services/api";
 import { haversineKm } from "../services/distance";
 import { CrowdBadge } from "../components/CrowdBadge";
@@ -50,11 +51,23 @@ export default function HomeScreen({ navigation }: Props) {
   // map swaps, matching the Singabus-style inline tab switch rather than
   // navigating to a second page.
   const [activeTab, setActiveTab] = useState<TabKey>("areas");
+  // Off by default - like Google/Apple Maps' own "explore" view, nothing
+  // custom is drawn until the User picks a layer. Lives here (not in
+  // VenueMap) so the list below can filter to match what's on the map.
+  const [layers, setLayers] = useState<LayerState>({
+    transit: false,
+    malls: false,
+    attractions: false,
+  });
 
   // Tapping the already-selected pin/row again deselects it, matching
   // ordinary toggle-select behaviour.
   const toggleSelection = (venueId: string) => {
     setSelectedVenueId((current) => (current === venueId ? null : venueId));
+  };
+
+  const handleToggleLayer = (key: keyof LayerState) => {
+    setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   const handleTabPress = (key: TabKey) => {
@@ -107,7 +120,15 @@ export default function HomeScreen({ navigation }: Props) {
   // No real saving mechanism exists yet (no favourite toggle anywhere in the
   // app) - this stays empty until that's built, rather than showing mock data.
   const savedVenues: Venue[] = [];
-  const listData = activeTab === "saved" ? savedVenues : visibleVenues;
+  // The list mirrors whatever layers are toggled on, same as the map - a
+  // venue type with its layer off shouldn't appear in one place but not the
+  // other.
+  const layeredVenues = useMemo(
+    () => visibleVenues.filter((venue) => isVenueInLayers(venue, layers)),
+    [visibleVenues, layers]
+  );
+  const listData = activeTab === "saved" ? savedVenues : layeredVenues;
+  const noLayersOn = !layers.transit && !layers.malls && !layers.attractions;
 
   if (loading || !region) {
     return (
@@ -123,6 +144,8 @@ export default function HomeScreen({ navigation }: Props) {
         initialRegion={region}
         venues={venues}
         railLines={railLines}
+        layers={layers}
+        onToggleLayer={handleToggleLayer}
         selectedVenueId={selectedVenueId}
         onSelectVenue={toggleSelection}
         onDeselect={() => setSelectedVenueId(null)}
@@ -143,7 +166,9 @@ export default function HomeScreen({ navigation }: Props) {
             <Text style={[styles.empty, { color: colors.textMuted }]}>
               {activeTab === "saved"
                 ? "No saved areas."
-                : "No venues in view - pan or zoom out the map."}
+                : noLayersOn
+                  ? "Toggle on venue types to view crowds."
+                  : "No venues in view - pan or zoom out the map."}
             </Text>
           }
           renderItem={({ item }) => {

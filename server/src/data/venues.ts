@@ -4,85 +4,6 @@ import { fetchStationCrowdLevels, mapCrowdCode } from "../services/lta";
 import { fetchLtaCarparkVenues } from "../services/carparks";
 import { spreadOverlappingVenues } from "../services/declutter";
 
-// Remaining mock venues: attractions/hawkers/gyms Google Popular Times will
-// eventually cover. VivoCity, ION Orchard, Orchard Central, and Sentosa were
-// removed from here since the real LTA carpark feed below now covers them -
-// keeping both would show two pins for the same mall.
-const mockVenues: Venue[] = [
-  {
-    id: "harbourfront-centre",
-    name: "HarbourFront Centre",
-    category: "Mall",
-    address: "1 Maritime Square",
-    lat: 1.2653,
-    lng: 103.82,
-    crowdPercent: 35,
-    crowdLevel: "Moderate",
-    source: "Mock",
-    lastUpdated: new Date().toISOString(),
-  },
-  {
-    id: "jewel-changi",
-    name: "Jewel Changi Airport",
-    category: "Attraction",
-    address: "78 Airport Blvd",
-    lat: 1.3603,
-    lng: 103.9895,
-    crowdPercent: 70,
-    crowdLevel: "High",
-    source: "Mock",
-    lastUpdated: new Date().toISOString(),
-  },
-  {
-    id: "gardens-by-the-bay",
-    name: "Gardens by the Bay",
-    category: "Attraction",
-    address: "18 Marina Gardens Dr",
-    lat: 1.2816,
-    lng: 103.8636,
-    crowdPercent: 55,
-    crowdLevel: "Moderate",
-    source: "Mock",
-    lastUpdated: new Date().toISOString(),
-  },
-  {
-    id: "maxwell-food-centre",
-    name: "Maxwell Food Centre",
-    category: "Hawker",
-    address: "1 Kadayanallur St",
-    lat: 1.2802,
-    lng: 103.8447,
-    crowdPercent: 60,
-    crowdLevel: "High",
-    source: "Mock",
-    lastUpdated: new Date().toISOString(),
-  },
-  {
-    id: "chinatown-complex",
-    name: "Chinatown Complex Market",
-    category: "Hawker",
-    address: "335 Smith St",
-    lat: 1.2822,
-    lng: 103.8434,
-    crowdPercent: 40,
-    crowdLevel: "Moderate",
-    source: "Mock",
-    lastUpdated: new Date().toISOString(),
-  },
-  {
-    id: "clementi-activesg-gym",
-    name: "Clementi ActiveSG Gym",
-    category: "Gym",
-    address: "3155 Commonwealth Ave W",
-    lat: 1.3162,
-    lng: 103.7649,
-    crowdPercent: 50,
-    crowdLevel: "Moderate",
-    source: "Mock",
-    lastUpdated: new Date().toISOString(),
-  },
-];
-
 // LTA updates every 10 minutes; caching for 5 avoids hammering their API on
 // every single incoming request while still staying well within freshness.
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -150,5 +71,5 @@ export async function getVenues(): Promise<Venue[]> {
     getTransportVenues(),
     getCarparkVenues(),
   ]);
-  return spreadOverlappingVenues([...mockVenues, ...transportVenues, ...carparkVenues]);
+  return spreadOverlappingVenues([...transportVenues, ...carparkVenues]);
 }
