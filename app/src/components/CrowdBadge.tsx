@@ -4,7 +4,9 @@ import { CrowdLevel } from "../types/venue";
 
 // Colour scheme matches SpaceOut.gov.sg (green/yellow/orange/red) since
 // that's the crowd-level convention Singapore users already recognise.
-const COLORS: Record<CrowdLevel, string> = {
+// Exported so other crowd-level-driven visuals (e.g. StationDot) match this
+// exact palette instead of inventing a second one.
+export const CROWD_COLORS: Record<CrowdLevel, string> = {
   Low: "#2E7D32",
   Moderate: "#F9A825",
   High: "#EF6C00",
@@ -13,7 +15,7 @@ const COLORS: Record<CrowdLevel, string> = {
 
 export function CrowdBadge({ level }: { level: CrowdLevel }) {
   return (
-    <View style={[styles.badge, { backgroundColor: COLORS[level] }]}>
+    <View style={[styles.badge, { backgroundColor: CROWD_COLORS[level] }]}>
       <Text style={styles.text}>{level}</Text>
     </View>
   );

@@ -2,10 +2,12 @@ import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Venue } from "../types/venue";
 import { MapRegion } from "../types/region";
+import { RailLineSegment } from "../types/railLine";
 
 interface Props {
   initialRegion: MapRegion;
   venues: Venue[];
+  railLines: RailLineSegment[];
   selectedVenueId: string | null;
   onSelectVenue: (venueId: string) => void;
   onDeselect: () => void;

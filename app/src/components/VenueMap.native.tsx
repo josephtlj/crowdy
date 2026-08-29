@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { StyleSheet, View, TouchableOpacity, Text, Alert } from "react-native";
-import MapView, { Marker, Region, MapPressEvent } from "react-native-maps";
+import MapView, { Marker, Polyline, Region, MapPressEvent } from "react-native-maps";
 // Wraps MapView with screen-proximity clustering (built on supercluster) -
 // mixed across all venue categories, purely based on on-screen overlap at
 // the current zoom level, not category or region. Its own `mapRef` prop
@@ -9,24 +9,48 @@ import ClusterMapView from "react-native-map-clustering";
 import * as Location from "expo-location";
 import { Venue } from "../types/venue";
 import { MapRegion } from "../types/region";
+import { RailLineSegment } from "../types/railLine";
 import { CategoryPin } from "./CategoryPin";
+import { StationDot } from "./StationDot";
+import { PIN_COLORS } from "./pinColors";
 import { useTheme } from "../theme/ThemeContext";
 import { DARK_MAP_STYLE } from "../theme/darkMapStyle";
+
+// react-native-map-clustering reads `cluster` off each Marker's props at
+// runtime to decide whether to include it in clustering, but that prop
+// isn't part of react-native-maps' own typed MapMarkerProps.
+const ClusterableMarker = Marker as unknown as React.ComponentType<
+  React.ComponentProps<typeof Marker> & { cluster?: boolean }
+>;
 
 interface Props {
   initialRegion: MapRegion;
   venues: Venue[];
+  railLines: RailLineSegment[];
   selectedVenueId: string | null;
   onSelectVenue: (venueId: string) => void;
   onDeselect: () => void;
   onRegionChange: (region: MapRegion) => void;
 }
 
+interface LayerState {
+  transit: boolean;
+  malls: boolean;
+  attractions: boolean;
+}
+
+const LAYER_TOGGLES: { key: keyof LayerState; label: string; color: string }[] = [
+  { key: "transit", label: "MRT", color: PIN_COLORS.MRT },
+  { key: "malls", label: "Mall", color: PIN_COLORS.Mall },
+  { key: "attractions", label: "Attr", color: PIN_COLORS.Attraction },
+];
+
 // Metro picks this file automatically on iOS/Android (see VenueMap.web.tsx
 // for the web fallback) - react-native-maps never enters the web bundle.
 export function VenueMap({
   initialRegion,
   venues,
+  railLines,
   selectedVenueId,
   onSelectVenue,
   onDeselect,
@@ -40,6 +64,14 @@ export function VenueMap({
   // isn't fed back into the (uncontrolled) map, so this is its own memory.
   const lastRegionRef = useRef<MapRegion>(initialRegion);
   const [recentring, setRecentring] = useState(false);
+  // Off by default - like Google/Apple Maps' own "explore" view, nothing
+  // custom is drawn until the User picks a layer, rather than dumping every
+  // category on screen at once.
+  const [layers, setLayers] = useState<LayerState>({
+    transit: false,
+    malls: false,
+    attractions: false,
+  });
   // Markers currently allowed to re-snapshot themselves. Previously this was
   // `hasSelection` applied to all ~200 markers at once - true for the entire
   // time any pin stayed selected, not just while switching. Forcing every
@@ -138,6 +170,16 @@ export function VenueMap({
 
   const hasSelection = selectedVenueId !== null;
 
+  // Only these three categories have a toggle - Hawker/Gym/Park/Worship stay
+  // mock-only and unscoped for now (see the CanGoNow-style scope discussion),
+  // so none of the layers show them.
+  const visibleVenues = venues.filter((venue) => {
+    if (venue.category === "MRT" || venue.category === "LRT") return layers.transit;
+    if (venue.category === "Mall") return layers.malls;
+    if (venue.category === "Attraction") return layers.attractions;
+    return false;
+  });
+
   return (
     <View style={styles.wrapper}>
       <ClusterMapView
@@ -158,28 +200,72 @@ export function VenueMap({
         mapPadding={{ top: 0, right: 0, bottom: 28, left: 0 }}
         clusterColor={colors.accent}
         clusterTextColor="#FFFFFF"
+        // Two markers merging into an anonymous numbered bubble read as
+        // confusing/ambiguous - only cluster once a group is dense enough
+        // that showing individual pins would genuinely overlap.
+        minPoints={4}
       >
-        {venues.map((venue) => {
+        {layers.transit &&
+          railLines.map((line, i) => (
+            <Polyline
+              key={`${line.code}-${i}`}
+              coordinates={line.coordinates.map((c) => ({ latitude: c.lat, longitude: c.lng }))}
+              strokeColor={line.color}
+              strokeWidth={3}
+            />
+          ))}
+
+        {visibleVenues.map((venue) => {
           const isSelected = venue.id === selectedVenueId;
           const isDimmed = hasSelection && !isSelected;
+          const isTransit = venue.category === "MRT" || venue.category === "LRT";
           return (
-            <Marker
+            <ClusterableMarker
               key={venue.id}
               coordinate={{ latitude: venue.lat, longitude: venue.lng }}
-              anchor={{ x: 0.5, y: 1 }}
+              anchor={{ x: 0.5, y: isTransit ? 0.5 : 1 }}
               onPress={() => onSelectVenue(venue.id)}
               // No title/description: the native callout bubble this would
               // otherwise show is redundant now that selecting a venue expands
               // its info inline in the list below instead.
               tracksViewChanges={trackingIds.has(venue.id)}
+              // Stations sit on a drawn line - merging them into a generic
+              // count bubble would break that visual context, so they're
+              // never clustered. Malls/attractions still are.
+              cluster={!isTransit}
             >
-              <View style={{ opacity: isDimmed ? 0.3 : 1 }}>
-                <CategoryPin category={venue.category} pointer />
-              </View>
-            </Marker>
+              {isTransit ? (
+                <StationDot level={venue.crowdLevel} dimmed={isDimmed} />
+              ) : (
+                <View style={{ opacity: isDimmed ? 0.3 : 1 }}>
+                  <CategoryPin category={venue.category} pointer />
+                </View>
+              )}
+            </ClusterableMarker>
           );
         })}
       </ClusterMapView>
+
+      <View style={styles.layerToggles}>
+        {LAYER_TOGGLES.map(({ key, label, color }) => {
+          const active = layers[key];
+          return (
+            <TouchableOpacity
+              key={key}
+              style={[
+                styles.layerButton,
+                { backgroundColor: active ? color : mode === "dark" ? "#000000" : "#FFFFFF" },
+              ]}
+              onPress={() => setLayers((prev) => ({ ...prev, [key]: !prev[key] }))}
+              accessibilityLabel={`Toggle ${label} layer`}
+            >
+              <Text style={[styles.layerButtonText, { color: active ? "#FFFFFF" : colors.accent }]}>
+                {label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
 
       <TouchableOpacity
         style={[
@@ -199,6 +285,25 @@ export function VenueMap({
 const styles = StyleSheet.create({
   wrapper: { width: "100%", height: "58%" },
   map: { width: "100%", height: "100%" },
+  layerToggles: {
+    position: "absolute",
+    left: 14,
+    bottom: 34,
+    gap: 10,
+  },
+  layerButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  layerButtonText: { fontSize: 10.5, fontWeight: "700" },
   recentreButton: {
     position: "absolute",
     right: 14,

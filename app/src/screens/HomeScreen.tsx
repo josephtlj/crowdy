@@ -15,7 +15,8 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/types";
 import { Venue } from "../types/venue";
 import { MapRegion } from "../types/region";
-import { getNearbyVenues } from "../services/api";
+import { RailLineSegment } from "../types/railLine";
+import { getNearbyVenues, getRailLines } from "../services/api";
 import { haversineKm } from "../services/distance";
 import { CrowdBadge } from "../components/CrowdBadge";
 import { CategoryPin } from "../components/CategoryPin";
@@ -41,6 +42,7 @@ export default function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const [venues, setVenues] = useState<Venue[]>([]);
+  const [railLines, setRailLines] = useState<RailLineSegment[]>([]);
   const [region, setRegion] = useState<MapRegion | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null);
@@ -81,6 +83,12 @@ export default function HomeScreen({ navigation }: Props) {
     })();
   }, []);
 
+  // Static geometry, unrelated to the User's location - fetched once
+  // independently rather than blocking the location/venues load above.
+  useEffect(() => {
+    getRailLines().then(setRailLines);
+  }, []);
+
   // Web has no map to pan, so it always shows the full nearby list.
   // Native re-filters to whatever's inside the map's current viewport,
   // sorted by distance to the viewport's centre rather than the user -
@@ -114,6 +122,7 @@ export default function HomeScreen({ navigation }: Props) {
       <VenueMap
         initialRegion={region}
         venues={venues}
+        railLines={railLines}
         selectedVenueId={selectedVenueId}
         onSelectVenue={toggleSelection}
         onDeselect={() => setSelectedVenueId(null)}

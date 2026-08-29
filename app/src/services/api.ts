@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 import Constants from "expo-constants";
 import { Venue } from "../types/venue";
+import { RailLineSegment } from "../types/railLine";
 
 // Every screen talks to the app through this file only - screens never
 // change when the data source does. On a physical device/simulator, "localhost"
@@ -36,4 +37,10 @@ export async function getVenueById(id: string): Promise<Venue | undefined> {
 
 export async function getAlternatives(venue: Venue): Promise<Venue[]> {
   return getJson<Venue[]>(`/venues/${venue.id}/alternatives`);
+}
+
+// Static rail alignment geometry - doesn't change per request, fetched once
+// alongside venues rather than re-fetched on every map interaction.
+export async function getRailLines(): Promise<RailLineSegment[]> {
+  return getJson<RailLineSegment[]>("/lines");
 }

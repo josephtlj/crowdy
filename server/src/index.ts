@@ -3,11 +3,13 @@ process.loadEnvFile(); // reads server/.env - must run before anything reads pro
 import express from "express";
 import cors from "cors";
 import { venuesRouter } from "./routes/venues";
+import { linesRouter } from "./routes/lines";
 
 const app = express();
 app.use(cors());
 
 app.use("/venues", venuesRouter);
+app.use("/lines", linesRouter);
 
 app.get("/", (_req, res) => {
   res.json({ status: "ok", service: "crowdy-server" });
