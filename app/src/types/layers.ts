@@ -7,12 +7,9 @@ export interface LayerState {
 }
 
 // Shared by the map (which pins/lines to draw) and the list (which rows to
-// show) so the two never drift out of sync with each other. Only these three
-// categories have a toggle at all - anything else (Hawker/Gym/Park/Worship)
-// has no layer that can reveal it.
+// show) so the two never drift out of sync with each other.
 export function isVenueInLayers(venue: Venue, layers: LayerState): boolean {
   if (venue.category === "MRT" || venue.category === "LRT") return layers.transit;
   if (venue.category === "Mall") return layers.malls;
-  if (venue.category === "Attraction") return layers.attractions;
-  return false;
+  return layers.attractions; // only "Attraction" is left
 }

@@ -10,10 +10,6 @@ export const PIN_COLORS: Record<VenueCategory, string> = {
   LRT: "#F2994A",
   Mall: "#EB5757",
   Attraction: "#9B51E0",
-  Hawker: "#27AE60",
-  Gym: "#56CCF2",
-  Park: "#219653",
-  Worship: "#F2C94C",
 };
 
 export const PIN_LABELS: Record<VenueCategory, string> = {
@@ -21,8 +17,4 @@ export const PIN_LABELS: Record<VenueCategory, string> = {
   LRT: "LR",
   Mall: "ML",
   Attraction: "AT",
-  Hawker: "HK",
-  Gym: "GY",
-  Park: "PK",
-  Worship: "WS",
 };

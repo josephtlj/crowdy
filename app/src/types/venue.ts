@@ -1,14 +1,6 @@
 export type CrowdLevel = "Low" | "Moderate" | "High" | "Very High";
 
-export type VenueCategory =
-  | "Mall"
-  | "Attraction"
-  | "Hawker"
-  | "Gym"
-  | "Park"
-  | "Worship"
-  | "MRT"
-  | "LRT";
+export type VenueCategory = "Mall" | "Attraction" | "MRT" | "LRT";
 
 export interface Venue {
   id: string;
