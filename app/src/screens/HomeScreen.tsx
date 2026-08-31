@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -59,11 +59,24 @@ export default function HomeScreen({ navigation }: Props) {
     venue: false,
   });
 
+  const listRef = useRef<FlatList<Venue>>(null);
+
   // Tapping the already-selected pin/row again deselects it, matching
   // ordinary toggle-select behaviour.
   const toggleSelection = (venueId: string) => {
     setSelectedVenueId((current) => (current === venueId ? null : venueId));
   };
+
+  // Selecting a venue re-centres the map on it, which re-sorts the list so
+  // that venue lands at the top (nearest the new viewport centre) - but
+  // FlatList doesn't follow a reorder with its own scroll position, so
+  // without this the User is left scrolled wherever they were, looking at
+  // the wrong rows while the actual selected venue sits off-screen above.
+  useEffect(() => {
+    if (selectedVenueId) {
+      listRef.current?.scrollToOffset({ offset: 0, animated: true });
+    }
+  }, [selectedVenueId]);
 
   const handleToggleLayer = (key: keyof LayerState) => {
     setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -157,6 +170,7 @@ export default function HomeScreen({ navigation }: Props) {
         <TabBar active={activeTab} onPress={handleTabPress} />
 
         <FlatList
+          ref={listRef}
           style={styles.list}
           data={listData}
           keyExtractor={(item) => item.id}

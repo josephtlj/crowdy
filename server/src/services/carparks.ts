@@ -16,6 +16,22 @@ function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
+// Available-lots-vs-historical-max is only a meaningful crowd proxy while
+// the venue itself is actually open - a mall's carpark can still see real
+// activity after closing (overnight parking, other tenants, nearby office
+// use), which otherwise shows a misleading Low/Moderate crowd level for a
+// venue that's actually shut. This is a single approximate default (most
+// large Singapore malls run 10am-10pm daily), not verified per-venue hours -
+// least accurate for the handful of non-mall attractions in this list
+// (Sentosa, Resorts World, etc.), which can have different real hours.
+const DEFAULT_OPEN_HOUR = 10;
+const DEFAULT_CLOSE_HOUR = 22;
+
+function isLikelyOpenNow(): boolean {
+  const hour = new Date().getHours();
+  return hour >= DEFAULT_OPEN_HOUR && hour < DEFAULT_CLOSE_HOUR;
+}
+
 // LTA gives no total-capacity figure for these carparks, so there's no
 // official denominator to compute "% full" against. Instead we track the
 // highest AvailableLots ever observed per carpark as a proxy for capacity -
@@ -78,11 +94,13 @@ export async function fetchLtaCarparkVenues(): Promise<Venue[]> {
   const data = (await res.json()) as { value: LtaCarparkRecord[] };
   const now = new Date().toISOString();
 
+  const open = isLikelyOpenNow();
+
   const venues = data.value
     .filter((r) => r.Agency === "LTA")
     .map((r) => {
       const [lat, lng] = r.Location.split(" ").map(Number);
-      const { crowdPercent, crowdLevel } = estimateCrowd(r.CarParkID, r.AvailableLots);
+      const estimate = estimateCrowd(r.CarParkID, r.AvailableLots);
       const venue: Venue = {
         id: `${slugify(r.Development)}-carpark`,
         name: r.Development,
@@ -90,8 +108,8 @@ export async function fetchLtaCarparkVenues(): Promise<Venue[]> {
         address: `${r.Development}, ${r.Area} (carpark)`,
         lat,
         lng,
-        crowdPercent,
-        crowdLevel,
+        crowdPercent: open ? estimate.crowdPercent : 0,
+        crowdLevel: open ? estimate.crowdLevel : "Closed",
         source: "LTA",
         lastUpdated: now,
       };

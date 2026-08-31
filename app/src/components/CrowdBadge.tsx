@@ -11,6 +11,7 @@ export const CROWD_COLORS: Record<CrowdLevel, string> = {
   Moderate: "#F9A825",
   High: "#EF6C00",
   "Very High": "#C62828",
+  Closed: "#757575",
 };
 
 export function CrowdBadge({ level }: { level: CrowdLevel }) {

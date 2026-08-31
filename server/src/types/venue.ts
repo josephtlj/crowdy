@@ -1,4 +1,4 @@
-export type CrowdLevel = "Low" | "Moderate" | "High" | "Very High";
+export type CrowdLevel = "Low" | "Moderate" | "High" | "Very High" | "Closed";
 
 export type VenueCategory = "Transit" | "Venue";
 
