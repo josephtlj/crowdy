@@ -56,8 +56,7 @@ export default function HomeScreen({ navigation }: Props) {
   // VenueMap) so the list below can filter to match what's on the map.
   const [layers, setLayers] = useState<LayerState>({
     transit: false,
-    malls: false,
-    attractions: false,
+    venue: false,
   });
 
   // Tapping the already-selected pin/row again deselects it, matching
@@ -128,7 +127,7 @@ export default function HomeScreen({ navigation }: Props) {
     [visibleVenues, layers]
   );
   const listData = activeTab === "saved" ? savedVenues : layeredVenues;
-  const noLayersOn = !layers.transit && !layers.malls && !layers.attractions;
+  const noLayersOn = !layers.transit && !layers.venue;
 
   if (loading || !region) {
     return (
@@ -192,9 +191,9 @@ export default function HomeScreen({ navigation }: Props) {
                       {item.crowdPercent}% of peak · updated{" "}
                       {new Date(item.lastUpdated).toLocaleTimeString()} · {item.source}
                     </Text>
-                    {/* MRT/LRT stations are fixed destinations, not interchangeable
-                        like malls/hawker centres - no "alternative" makes sense. */}
-                    {item.category !== "MRT" && item.category !== "LRT" && (
+                    {/* Transit stations are fixed destinations, not interchangeable
+                        like malls/attractions - no "alternative" makes sense. */}
+                    {item.category !== "Transit" && (
                       <TouchableOpacity
                         style={styles.previewButton}
                         onPress={() => navigation.navigate("Detail", { venueId: item.id })}

@@ -11,7 +11,6 @@ import { Venue } from "../types/venue";
 import { MapRegion } from "../types/region";
 import { RailLineSegment } from "../types/railLine";
 import { LayerState, isVenueInLayers } from "../types/layers";
-import { CategoryPin } from "./CategoryPin";
 import { StationDot } from "./StationDot";
 import { PIN_COLORS } from "./pinColors";
 import { useTheme } from "../theme/ThemeContext";
@@ -37,9 +36,8 @@ interface Props {
 }
 
 const LAYER_TOGGLES: { key: keyof LayerState; label: string; color: string }[] = [
-  { key: "transit", label: "MRT", color: PIN_COLORS.MRT },
-  { key: "malls", label: "Mall", color: PIN_COLORS.Mall },
-  { key: "attractions", label: "Attr", color: PIN_COLORS.Attraction },
+  { key: "transit", label: "Transit", color: PIN_COLORS.Transit },
+  { key: "venue", label: "Venue", color: PIN_COLORS.Venue },
 ];
 
 // Metro picks this file automatically on iOS/Android (see VenueMap.web.tsx
@@ -201,30 +199,22 @@ export function VenueMap({
         {visibleVenues.map((venue) => {
           const isSelected = venue.id === selectedVenueId;
           const isDimmed = hasSelection && !isSelected;
-          const isTransit = venue.category === "MRT" || venue.category === "LRT";
-          // Temporarily also unclustered for malls, so every mall shows
-          // individually to gauge real clutter before deciding on cluster
-          // styling - attractions are untouched, still pin-shaped + clustered.
-          const usesCrowdDot = isTransit || venue.category === "Mall";
           return (
             <ClusterableMarker
               key={venue.id}
               coordinate={{ latitude: venue.lat, longitude: venue.lng }}
-              anchor={{ x: 0.5, y: usesCrowdDot ? 0.5 : 1 }}
+              anchor={{ x: 0.5, y: 0.5 }}
               onPress={() => onSelectVenue(venue.id)}
               // No title/description: the native callout bubble this would
               // otherwise show is redundant now that selecting a venue expands
               // its info inline in the list below instead.
               tracksViewChanges={trackingIds.has(venue.id)}
-              cluster={!usesCrowdDot}
+              // Every venue is now a crowd-colored dot (Transit and Venue
+              // alike) - dots sit on their own, individually tappable, so
+              // none of them cluster into an anonymous count bubble.
+              cluster={false}
             >
-              {usesCrowdDot ? (
-                <StationDot level={venue.crowdLevel} dimmed={isDimmed} />
-              ) : (
-                <View style={{ opacity: isDimmed ? 0.3 : 1 }}>
-                  <CategoryPin category={venue.category} pointer />
-                </View>
-              )}
+              <StationDot level={venue.crowdLevel} dimmed={isDimmed} />
             </ClusterableMarker>
           );
         })}

@@ -12,17 +12,6 @@ interface LtaCarparkRecord {
   Agency: string;
 }
 
-// A handful of "Development" names in the LTA feed are attractions/venues,
-// not shopping malls - the rest really are malls despite the API's blanket
-// "carpark data" framing.
-const ATTRACTION_NAMES = new Set([
-  "Sentosa",
-  "Resorts World",
-  "Singapore Flyer",
-  "National Gallery",
-  "Esplanade",
-]);
-
 function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
@@ -97,7 +86,7 @@ export async function fetchLtaCarparkVenues(): Promise<Venue[]> {
       const venue: Venue = {
         id: `${slugify(r.Development)}-carpark`,
         name: r.Development,
-        category: ATTRACTION_NAMES.has(r.Development) ? "Attraction" : "Mall",
+        category: "Venue",
         address: `${r.Development}, ${r.Area} (carpark)`,
         lat,
         lng,

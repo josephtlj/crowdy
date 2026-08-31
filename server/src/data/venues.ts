@@ -25,7 +25,7 @@ async function getTransportVenues(): Promise<Venue[]> {
       const venue: Venue = {
         id: station.id,
         name: station.name,
-        category: station.mode,
+        category: "Transit",
         address: station.address,
         lat: station.lat,
         lng: station.lng,
