@@ -3,6 +3,13 @@ import { STATIONS } from "./stations";
 import { fetchStationCrowdLevels, mapCrowdCode } from "../services/lta";
 import { fetchLtaCarparkVenues } from "../services/carparks";
 import { spreadOverlappingVenues } from "../services/declutter";
+import { getCachedPopularTimes } from "../services/popularTimes";
+
+// A bit looser than the scheduler's own hourly cadence, as slack for a pass
+// running a few minutes long or a tick getting skipped - a venue only falls
+// back to the carpark estimate if even that generous a window has lapsed
+// with no successful batch refresh.
+const POPULAR_TIMES_MAX_AGE_MS = 90 * 60 * 1000;
 
 // LTA updates every 10 minutes; caching for 5 avoids hammering their API on
 // every single incoming request while still staying well within freshness.
@@ -52,12 +59,29 @@ const CARPARK_CACHE_TTL_MS = 60 * 1000;
 let cachedCarparkVenues: Venue[] = [];
 let carparkCacheTimestamp = 0;
 
+// Prefers a real, batch-scheduler-cached Popular Times reading over the
+// carpark-lots estimate wherever one's fresh enough to exist - falls back to
+// the carpark estimate per-venue otherwise (never scrapes live here, so this
+// stays fast regardless of cache state).
+function applyPopularTimesOverride(venues: Venue[]): Venue[] {
+  return venues.map((venue) => {
+    const popularTimes = getCachedPopularTimes(venue.id, POPULAR_TIMES_MAX_AGE_MS);
+    if (!popularTimes) return venue;
+    return {
+      ...venue,
+      crowdPercent: popularTimes.crowdPercent,
+      crowdLevel: popularTimes.crowdLevel,
+      source: "GooglePopularTimes",
+    };
+  });
+}
+
 async function getCarparkVenues(): Promise<Venue[]> {
   const isFresh = Date.now() - carparkCacheTimestamp < CARPARK_CACHE_TTL_MS && cachedCarparkVenues.length > 0;
   if (isFresh) return cachedCarparkVenues;
 
   try {
-    cachedCarparkVenues = await fetchLtaCarparkVenues();
+    cachedCarparkVenues = applyPopularTimesOverride(await fetchLtaCarparkVenues());
     carparkCacheTimestamp = Date.now();
   } catch (err) {
     console.error("LTA carpark fetch failed, serving stale/empty carpark data:", err);

@@ -27,7 +27,7 @@ function slugify(name: string): string {
 const DEFAULT_OPEN_HOUR = 10;
 const DEFAULT_CLOSE_HOUR = 22;
 
-function isLikelyOpenNow(): boolean {
+export function isLikelyOpenNow(): boolean {
   const hour = new Date().getHours();
   return hour >= DEFAULT_OPEN_HOUR && hour < DEFAULT_CLOSE_HOUR;
 }

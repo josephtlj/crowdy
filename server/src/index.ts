@@ -4,12 +4,15 @@ import express from "express";
 import cors from "cors";
 import { venuesRouter } from "./routes/venues";
 import { linesRouter } from "./routes/lines";
+import { startPopularTimesScheduler } from "./services/popularTimesScheduler";
 
 const app = express();
 app.use(cors());
 
 app.use("/venues", venuesRouter);
 app.use("/lines", linesRouter);
+
+startPopularTimesScheduler();
 
 app.get("/", (_req, res) => {
   res.json({ status: "ok", service: "crowdy-server" });

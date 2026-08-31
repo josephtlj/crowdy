@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import puppeteerExtra from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import type { Browser } from "puppeteer";
@@ -13,6 +15,11 @@ export interface PopularTimesResult {
   hourly: { hour: number; percent: number }[];
 }
 
+interface CacheEntry {
+  result: PopularTimesResult | null;
+  timestamp: number;
+}
+
 // Not an official Google API - there isn't one. This drives a real headless
 // browser through the exact flow a human visitor takes, since a plain HTTP
 // request (what every known scraping library actually does) gets served a
@@ -26,7 +33,32 @@ export interface PopularTimesResult {
 // degrades to `null` rather than throwing, letting the caller fall back to
 // the carpark-based estimate instead.
 const CACHE_TTL_MS = 4 * 60 * 60 * 1000; // typical patterns barely move hour to hour
-const cache = new Map<string, { result: PopularTimesResult | null; timestamp: number }>();
+
+// Persisted to disk (same pattern as carpark-history.json) so a server
+// restart doesn't wipe every venue back to "never checked" - without this,
+// the bulk list would have zero Popular Times data until the scheduler's
+// next full pass completes, which could be up to an hour away.
+const CACHE_FILE = path.join(__dirname, "..", "..", "data", "popular-times-cache.json");
+
+function loadCache(): Map<string, CacheEntry> {
+  try {
+    const raw = fs.readFileSync(CACHE_FILE, "utf-8");
+    return new Map(Object.entries(JSON.parse(raw) as Record<string, CacheEntry>));
+  } catch {
+    return new Map(); // no file yet on first run, or unreadable - start fresh
+  }
+}
+
+function saveCache(map: Map<string, CacheEntry>): void {
+  try {
+    fs.mkdirSync(path.dirname(CACHE_FILE), { recursive: true });
+    fs.writeFileSync(CACHE_FILE, JSON.stringify(Object.fromEntries(map), null, 2));
+  } catch (err) {
+    console.error("Failed to persist Popular Times cache:", err);
+  }
+}
+
+const cache = loadCache();
 
 let browserPromise: Promise<Browser> | null = null;
 function getBrowser(): Promise<Browser> {
@@ -146,6 +178,9 @@ async function scrapePopularTimes(venueName: string): Promise<PopularTimesResult
   }
 }
 
+// On-demand path: used by the DetailScreen "Check crowd now" button. Forces
+// a fresh scrape on a cache miss, so it can take the full ~15-20s - fine for
+// a single explicit user action, not fine for anything called in bulk.
 export async function getPopularTimes(venueId: string, venueName: string): Promise<PopularTimesResult | null> {
   const cached = cache.get(venueId);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
@@ -158,5 +193,44 @@ export async function getPopularTimes(venueId: string, venueName: string): Promi
   });
 
   cache.set(venueId, { result, timestamp: Date.now() });
+  saveCache(cache);
   return result;
+}
+
+// Bulk-list path: only ever reads whatever the scheduler has already cached
+// - never triggers a scrape itself, so a bulk /venues request stays fast
+// regardless of cache state. `maxAgeMs` is intentionally separate from (and
+// looser than) CACHE_TTL_MS, since this is read far more often than the
+// scheduler refreshes.
+export function getCachedPopularTimes(venueId: string, maxAgeMs: number): PopularTimesResult | null {
+  const cached = cache.get(venueId);
+  if (!cached || Date.now() - cached.timestamp >= maxAgeMs) return null;
+  return cached.result;
+}
+
+// Scheduler path: sequentially refreshes a whole list of known venues,
+// reusing the same shared browser instance a page at a time. Logs and moves
+// on per-venue failure rather than aborting the whole batch over one bad
+// name (e.g. an ambiguous name resolving to the wrong page).
+export async function refreshAllPopularTimes(
+  venues: { id: string; name: string }[]
+): Promise<{ succeeded: number; failed: number }> {
+  let succeeded = 0;
+  let failed = 0;
+
+  for (const venue of venues) {
+    try {
+      const result = await scrapePopularTimes(venue.name);
+      cache.set(venue.id, { result, timestamp: Date.now() });
+      if (result) succeeded++;
+      else failed++;
+    } catch (err) {
+      console.error(`[popularTimes] Batch refresh failed for "${venue.name}":`, err);
+      cache.set(venue.id, { result: null, timestamp: Date.now() });
+      failed++;
+    }
+  }
+
+  saveCache(cache);
+  return { succeeded, failed };
 }
