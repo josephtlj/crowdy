@@ -202,8 +202,12 @@ export default function HomeScreen({ navigation }: Props) {
                 {isSelected && (
                   <View style={styles.preview}>
                     <Text style={[styles.previewText, { color: colors.textMuted }]}>
-                      {item.crowdPercent}% of peak · updated{" "}
-                      {new Date(item.lastUpdated).toLocaleTimeString()} · {item.source}
+                      {/* LTA only ever gives a low/moderate/high category, never a
+                          real number - showing "20%/50%/80%" implied a precision
+                          that doesn't exist at the source, so Transit just shows
+                          the category label (already on the badge above). */}
+                      {item.category !== "Transit" && `${item.crowdPercent}% of peak · `}
+                      updated {new Date(item.lastUpdated).toLocaleTimeString()} · {item.source}
                     </Text>
                     {/* Transit stations are fixed destinations, not interchangeable
                         like malls/attractions - no "alternative" makes sense. */}
@@ -212,7 +216,7 @@ export default function HomeScreen({ navigation }: Props) {
                         style={styles.previewButton}
                         onPress={() => navigation.navigate("Detail", { venueId: item.id })}
                       >
-                        <Text style={styles.previewButtonText}>View Alternatives &rsaquo;</Text>
+                        <Text style={styles.previewButtonText}>See more details &rsaquo;</Text>
                       </TouchableOpacity>
                     )}
                   </View>

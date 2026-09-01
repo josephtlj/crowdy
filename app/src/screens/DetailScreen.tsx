@@ -6,6 +6,7 @@ import { Venue } from "../types/venue";
 import { PopularTimesResult } from "../types/popularTimes";
 import { getVenueById, getAlternatives, getPopularTimesForVenue } from "../services/api";
 import { CrowdBadge } from "../components/CrowdBadge";
+import { PopularTimesChart } from "../components/PopularTimesChart";
 import { useTheme } from "../theme/ThemeContext";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Detail">;
@@ -70,7 +71,11 @@ export default function DetailScreen({ route, navigation }: Props) {
 
       <View style={styles.crowdRow}>
         <CrowdBadge level={venue.crowdLevel} />
-        <Text style={[styles.percent, { color: colors.text }]}>{venue.crowdPercent}% of peak</Text>
+        {/* LTA only gives a low/moderate/high category, never a real number -
+            showing "20%/50%/80%" implied a precision that doesn't exist. */}
+        {venue.category !== "Transit" && (
+          <Text style={[styles.percent, { color: colors.text }]}>{venue.crowdPercent}% of peak</Text>
+        )}
       </View>
 
       <Text style={[styles.updated, { color: colors.textMuted }]}>
@@ -102,12 +107,15 @@ export default function DetailScreen({ route, navigation }: Props) {
             </View>
           )}
           {popularTimesChecked && !checkingPopularTimes && popularTimes && (
-            <View style={styles.crowdRow}>
-              <CrowdBadge level={popularTimes.crowdLevel} />
-              <Text style={[styles.percent, { color: colors.text }]}>
-                {popularTimes.crowdPercent}% busy right now (typical for this hour)
-              </Text>
-            </View>
+            <>
+              <View style={styles.crowdRow}>
+                <CrowdBadge level={popularTimes.crowdLevel} />
+                <Text style={[styles.percent, { color: colors.text }]}>
+                  {popularTimes.crowdPercent}% busy right now (typical for this hour)
+                </Text>
+              </View>
+              <PopularTimesChart hourly={popularTimes.hourly} />
+            </>
           )}
           {popularTimesChecked && !checkingPopularTimes && !popularTimes && (
             <Text style={[styles.meta, { color: colors.textMuted }]}>
