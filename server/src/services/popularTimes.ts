@@ -60,11 +60,23 @@ function saveCache(map: Map<string, CacheEntry>): void {
 
 const cache = loadCache();
 
+// A single long-lived browser instance is reused across lookups rather than
+// relaunching per-request - but the underlying Chrome DevTools Protocol
+// connection doesn't reliably survive the host machine sleeping (confirmed:
+// every request failed with ConnectionClosedError after this process sat
+// through ~18 hours including sleep/wake), and there was previously no way
+// to recover from that short of restarting the whole server. Re-checking
+// `.connected` and relaunching on demand fixes that without needing a
+// restart.
 let browserPromise: Promise<Browser> | null = null;
-function getBrowser(): Promise<Browser> {
-  if (!browserPromise) {
-    browserPromise = puppeteerExtra.launch({ headless: true }) as Promise<Browser>;
+async function getBrowser(): Promise<Browser> {
+  if (browserPromise) {
+    const existing = await browserPromise;
+    if (existing.connected) return existing;
+    console.error("[popularTimes] Cached browser disconnected (likely a sleep/wake drop) - relaunching.");
+    browserPromise = null;
   }
+  browserPromise = puppeteerExtra.launch({ headless: true }) as Promise<Browser>;
   return browserPromise;
 }
 
