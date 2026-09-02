@@ -1,15 +1,65 @@
 import { Venue } from "../types/venue";
 import { STATIONS } from "./stations";
+import { MALLS } from "./malls";
 import { fetchStationCrowdLevels, mapCrowdCode } from "../services/lta";
-import { fetchLtaCarparkVenues } from "../services/carparks";
+import { fetchLtaCarparkRecords } from "../services/carparks";
 import { spreadOverlappingVenues } from "../services/declutter";
 import { getCachedPopularTimes } from "../services/popularTimes";
 
-// A bit looser than the scheduler's own hourly cadence, as slack for a pass
-// running a few minutes long or a tick getting skipped - a venue only falls
-// back to the carpark estimate if even that generous a window has lapsed
-// with no successful batch refresh.
-const POPULAR_TIMES_MAX_AGE_MS = 90 * 60 * 1000;
+// A bit looser than the scheduler's own daily cadence, as slack for a pass
+// running long or a tick getting delayed - a venue only shows "Unavailable"
+// if even that generous a window has lapsed with no successful batch
+// refresh. Wide because the underlying pattern barely moves day to day and
+// "right now" is always recomputed fresh from it regardless of how old the
+// scrape itself is (see getCachedPopularTimes).
+const POPULAR_TIMES_MAX_AGE_MS = 30 * 60 * 60 * 1000;
+
+// Popular Times is the sole source for every mall in MALLS - no carpark
+// fallback. There used to be one (a carpark-lots estimate for any venue
+// without a fresh Popular Times reading), but it silently produced
+// duplicate pins: an LTA carpark record whose nearest-neighbour match went
+// to a different, nearby mall was left "unclaimed" and spawned its own
+// separate legacy venue alongside the real one (this is exactly how Marina
+// Square ended up listed twice). Any mall genuinely missing a fresh scrape
+// now shows "Unavailable" instead - honest about there being no reading,
+// rather than quietly reusing carpark-lots as a stand-in. Live LTA lot
+// counts, where a mall has them, are attached only as a bonus stat (Detail
+// screen), never used to derive crowdPercent/crowdLevel.
+async function getMallVenues(): Promise<Venue[]> {
+  const now = new Date().toISOString();
+
+  let lotsByDevelopment = new Map<string, number>();
+  try {
+    const records = await fetchLtaCarparkRecords();
+    lotsByDevelopment = new Map(records.map((r) => [r.Development, r.AvailableLots]));
+  } catch (err) {
+    console.error("LTA carpark fetch failed for mall bonus stats, continuing without them:", err);
+  }
+
+  return MALLS.map((mall) => {
+    const popularTimes = getCachedPopularTimes(mall.id, POPULAR_TIMES_MAX_AGE_MS);
+    const carparks = mall.carparkDevelopments?.map((dev) => ({
+      label: dev,
+      availableLots: lotsByDevelopment.get(dev) ?? 0,
+    }));
+
+    const venue: Venue = {
+      id: mall.id,
+      name: mall.name,
+      category: "Venue",
+      address: mall.address,
+      lat: mall.lat,
+      lng: mall.lng,
+      crowdPercent: popularTimes?.crowdPercent ?? 0,
+      crowdLevel: popularTimes?.crowdLevel ?? "Unavailable",
+      source: "GooglePopularTimes",
+      lastUpdated: now,
+      carparks,
+      hourly: popularTimes?.hourly,
+    };
+    return venue;
+  });
+}
 
 // LTA updates every 10 minutes; caching for 5 avoids hammering their API on
 // every single incoming request while still staying well within freshness.
@@ -53,47 +103,31 @@ async function getTransportVenues(): Promise<Venue[]> {
   return cachedTransportVenues;
 }
 
-// This feed updates every 1 minute per LTA's docs; cache 1 minute to stay
-// close to that freshness without calling on every single incoming request.
-const CARPARK_CACHE_TTL_MS = 60 * 1000;
-let cachedCarparkVenues: Venue[] = [];
-let carparkCacheTimestamp = 0;
+// The live LTA lot-count lookup (for bonus stats) updates every 1 minute
+// per LTA's docs; cache 1 minute to stay close to that freshness without
+// calling on every single incoming request.
+const MALL_CACHE_TTL_MS = 60 * 1000;
+let cachedMallVenues: Venue[] = [];
+let mallCacheTimestamp = 0;
 
-// Prefers a real, batch-scheduler-cached Popular Times reading over the
-// carpark-lots estimate wherever one's fresh enough to exist - falls back to
-// the carpark estimate per-venue otherwise (never scrapes live here, so this
-// stays fast regardless of cache state).
-function applyPopularTimesOverride(venues: Venue[]): Venue[] {
-  return venues.map((venue) => {
-    const popularTimes = getCachedPopularTimes(venue.id, POPULAR_TIMES_MAX_AGE_MS);
-    if (!popularTimes) return venue;
-    return {
-      ...venue,
-      crowdPercent: popularTimes.crowdPercent,
-      crowdLevel: popularTimes.crowdLevel,
-      source: "GooglePopularTimes",
-    };
-  });
-}
-
-async function getCarparkVenues(): Promise<Venue[]> {
-  const isFresh = Date.now() - carparkCacheTimestamp < CARPARK_CACHE_TTL_MS && cachedCarparkVenues.length > 0;
-  if (isFresh) return cachedCarparkVenues;
+async function getCachedMallVenues(): Promise<Venue[]> {
+  const isFresh = Date.now() - mallCacheTimestamp < MALL_CACHE_TTL_MS && cachedMallVenues.length > 0;
+  if (isFresh) return cachedMallVenues;
 
   try {
-    cachedCarparkVenues = applyPopularTimesOverride(await fetchLtaCarparkVenues());
-    carparkCacheTimestamp = Date.now();
+    cachedMallVenues = await getMallVenues();
+    mallCacheTimestamp = Date.now();
   } catch (err) {
-    console.error("LTA carpark fetch failed, serving stale/empty carpark data:", err);
+    console.error("Mall venue fetch failed, serving stale/empty data:", err);
   }
 
-  return cachedCarparkVenues;
+  return cachedMallVenues;
 }
 
 export async function getVenues(): Promise<Venue[]> {
-  const [transportVenues, carparkVenues] = await Promise.all([
+  const [transportVenues, mallVenues] = await Promise.all([
     getTransportVenues(),
-    getCarparkVenues(),
+    getCachedMallVenues(),
   ]);
-  return spreadOverlappingVenues([...transportVenues, ...carparkVenues]);
+  return spreadOverlappingVenues([...transportVenues, ...mallVenues]);
 }

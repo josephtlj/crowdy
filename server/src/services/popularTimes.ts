@@ -32,7 +32,14 @@ interface CacheEntry {
 // their page at any time with no notice - so every failure mode here
 // degrades to `null` rather than throwing, letting the caller fall back to
 // the carpark-based estimate instead.
-const CACHE_TTL_MS = 4 * 60 * 60 * 1000; // typical patterns barely move hour to hour
+//
+// A single scrape returns a whole typical day's hourly pattern (Google's
+// Popular Times is a historical/typical view, not a live-only one - the
+// full bar chart is visible on the page no matter what time you look at
+// it), so there's no need to re-scrape more than about once a day: the
+// pattern itself barely moves, and "right now" is always recomputed fresh
+// from whichever pattern is cached (see currentReadingFromHourly below).
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 // Persisted to disk (same pattern as carpark-history.json) so a server
 // restart doesn't wipe every venue back to "never checked" - without this,
@@ -85,6 +92,20 @@ function mapCrowdLevel(percent: number): CrowdLevel {
   if (percent < 60) return "Moderate";
   if (percent < 80) return "High";
   return "Very High";
+}
+
+// The cached `hourly` pattern stays valid for the whole day it was scraped
+// on regardless of scrape time, but the "right now" reading only holds for
+// the specific hour it was computed at - so every read recomputes it fresh
+// against the current hour rather than trusting whatever was true when the
+// scrape ran (which could've been many hours ago).
+function currentReadingFromHourly(
+  hourly: { hour: number; percent: number }[]
+): { crowdPercent: number; crowdLevel: CrowdLevel } {
+  const currentHour = new Date().getHours();
+  const entry = hourly.find((e) => e.hour === currentHour);
+  if (!entry) return { crowdPercent: 0, crowdLevel: "Closed" };
+  return { crowdPercent: entry.percent, crowdLevel: mapCrowdLevel(entry.percent) };
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -176,9 +197,16 @@ async function scrapePopularTimes(venueName: string): Promise<PopularTimesResult
       today.push(entry);
     }
 
+    // A successfully-extracted day pattern with no entry for the current
+    // hour means Google itself has no busyness bar for right now - i.e.
+    // the venue is closed. That's a real, meaningful result (not a scrape
+    // failure), and it's a per-venue, per-day signal read directly off the
+    // data we already fetch - no separate opening-hours source needed.
     const currentHour = new Date().getHours();
     const currentEntry = today.find((e) => e.hour === currentHour);
-    if (!currentEntry) return null; // venue likely closed right now - no data for this hour
+    if (!currentEntry) {
+      return { crowdPercent: 0, crowdLevel: "Closed", hourly: today };
+    }
 
     return {
       crowdPercent: currentEntry.percent,
@@ -196,7 +224,8 @@ async function scrapePopularTimes(venueName: string): Promise<PopularTimesResult
 export async function getPopularTimes(venueId: string, venueName: string): Promise<PopularTimesResult | null> {
   const cached = cache.get(venueId);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-    return cached.result;
+    if (!cached.result) return null;
+    return { ...cached.result, ...currentReadingFromHourly(cached.result.hourly) };
   }
 
   const result = await scrapePopularTimes(venueName).catch((err) => {
@@ -217,7 +246,8 @@ export async function getPopularTimes(venueId: string, venueName: string): Promi
 export function getCachedPopularTimes(venueId: string, maxAgeMs: number): PopularTimesResult | null {
   const cached = cache.get(venueId);
   if (!cached || Date.now() - cached.timestamp >= maxAgeMs) return null;
-  return cached.result;
+  if (!cached.result) return null;
+  return { ...cached.result, ...currentReadingFromHourly(cached.result.hourly) };
 }
 
 // Scheduler path: sequentially refreshes a whole list of known venues,

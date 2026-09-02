@@ -12,8 +12,9 @@ export function findAlternatives(venue: Venue, allVenues: Venue[]): Venue[] {
     .filter((candidate) => candidate.id !== venue.id)
     .filter((candidate) => candidate.category === venue.category)
     // A closed venue reads as "0% busy" but isn't a real alternative - you
-    // can't actually go there right now.
-    .filter((candidate) => candidate.crowdLevel !== "Closed")
+    // can't actually go there right now. Same for one we simply have no
+    // reading for yet - recommending it would be a guess, not a fact.
+    .filter((candidate) => candidate.crowdLevel !== "Closed" && candidate.crowdLevel !== "Unavailable")
     .filter((candidate) => candidate.crowdPercent < venue.crowdPercent)
     .map((candidate) => ({
       ...candidate,

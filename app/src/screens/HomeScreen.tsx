@@ -205,8 +205,12 @@ export default function HomeScreen({ navigation }: Props) {
                       {/* LTA only ever gives a low/moderate/high category, never a
                           real number - showing "20%/50%/80%" implied a precision
                           that doesn't exist at the source, so Transit just shows
-                          the category label (already on the badge above). */}
-                      {item.category !== "Transit" && `${item.crowdPercent}% of peak · `}
+                          the category label (already on the badge above).
+                          "Unavailable" means no reading exists yet - "0% of peak"
+                          would misread as an actual low-crowd measurement. */}
+                      {item.category !== "Transit" &&
+                        item.crowdLevel !== "Unavailable" &&
+                        `${item.crowdPercent}% of peak · `}
                       updated {new Date(item.lastUpdated).toLocaleTimeString()} · {item.source}
                     </Text>
                     {/* Transit stations are fixed destinations, not interchangeable

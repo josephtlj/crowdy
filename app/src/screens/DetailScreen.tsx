@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity } from "react-native";
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, Pressable } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/types";
 import { Venue } from "../types/venue";
-import { PopularTimesResult } from "../types/popularTimes";
-import { getVenueById, getAlternatives, getPopularTimesForVenue } from "../services/api";
+import { getVenueById, getAlternatives } from "../services/api";
 import { CrowdBadge } from "../components/CrowdBadge";
 import { PopularTimesChart } from "../components/PopularTimesChart";
 import { useTheme } from "../theme/ThemeContext";
@@ -17,20 +16,7 @@ export default function DetailScreen({ route, navigation }: Props) {
   const [venue, setVenue] = useState<Venue | null>(null);
   const [alternatives, setAlternatives] = useState<Venue[]>([]);
   const [loading, setLoading] = useState(true);
-  const [popularTimes, setPopularTimes] = useState<PopularTimesResult | null>(null);
-  const [checkingPopularTimes, setCheckingPopularTimes] = useState(false);
-  const [popularTimesChecked, setPopularTimesChecked] = useState(false);
-
-  // Explicit action, not automatic on load - this is a genuinely slow
-  // (~15-20s), real-browser-driven lookup server-side, not a normal API
-  // call, so it shouldn't fire just from opening this screen.
-  const handleCheckPopularTimes = async () => {
-    setCheckingPopularTimes(true);
-    const result = await getPopularTimesForVenue(venueId);
-    setPopularTimes(result);
-    setPopularTimesChecked(true);
-    setCheckingPopularTimes(false);
-  };
+  const [selectedHour, setSelectedHour] = useState(new Date().getHours());
 
   useEffect(() => {
     (async () => {
@@ -66,14 +52,23 @@ export default function DetailScreen({ route, navigation }: Props) {
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.content}
     >
+      {/* The chart's bars fill its own width edge to edge, leaving nowhere
+          inside it to tap for "deselect" - so tapping away from the chart
+          resets it, scoped to the whole screen's content instead. A tap
+          that lands on a bar (or the alternatives rows below) is still
+          claimed by that element's own Touchable first and never reaches
+          this handler, same as any nested RN touch target. */}
+      <Pressable onPress={() => setSelectedHour(new Date().getHours())}>
       <Text style={[styles.name, { color: colors.text }]}>{venue.name}</Text>
       <Text style={[styles.address, { color: colors.textMuted }]}>{venue.address}</Text>
 
       <View style={styles.crowdRow}>
         <CrowdBadge level={venue.crowdLevel} />
         {/* LTA only gives a low/moderate/high category, never a real number -
-            showing "20%/50%/80%" implied a precision that doesn't exist. */}
-        {venue.category !== "Transit" && (
+            showing "20%/50%/80%" implied a precision that doesn't exist.
+            "Unavailable" means no reading exists yet - showing "0% of peak"
+            next to it would misread as an actual low-crowd measurement. */}
+        {venue.category !== "Transit" && venue.crowdLevel !== "Unavailable" && (
           <Text style={[styles.percent, { color: colors.text }]}>{venue.crowdPercent}% of peak</Text>
         )}
       </View>
@@ -83,45 +78,35 @@ export default function DetailScreen({ route, navigation }: Props) {
       </Text>
 
       {/* Transit already has real, official LTA crowd data - this is only
-          useful for Venues, where the carpark-based figure above is an
-          estimate rather than a direct measurement. */}
+          useful for Venues, where the crowd figure above comes from Popular
+          Times (or is still "Unavailable" if this venue hasn't been
+          scraped yet - the batch scheduler fills this in automatically,
+          nothing for the user to trigger). */}
       {venue.category !== "Transit" && (
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Google Popular Times
-          </Text>
-          {!popularTimesChecked && !checkingPopularTimes && (
-            <TouchableOpacity
-              style={[styles.checkButton, { backgroundColor: colors.accent }]}
-              onPress={handleCheckPopularTimes}
-            >
-              <Text style={styles.checkButtonText}>Check crowd now</Text>
-            </TouchableOpacity>
-          )}
-          {checkingPopularTimes && (
-            <View style={styles.checkingRow}>
-              <ActivityIndicator size="small" />
-              <Text style={[styles.checkingText, { color: colors.textMuted }]}>
-                Checking Google Popular Times - this can take up to 20 seconds…
-              </Text>
-            </View>
-          )}
-          {popularTimesChecked && !checkingPopularTimes && popularTimes && (
-            <>
-              <View style={styles.crowdRow}>
-                <CrowdBadge level={popularTimes.crowdLevel} />
-                <Text style={[styles.percent, { color: colors.text }]}>
-                  {popularTimes.crowdPercent}% busy right now (typical for this hour)
-                </Text>
-              </View>
-              <PopularTimesChart hourly={popularTimes.hourly} />
-            </>
-          )}
-          {popularTimesChecked && !checkingPopularTimes && !popularTimes && (
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Crowd Information</Text>
+          {venue.hourly && venue.hourly.length > 0 ? (
+            <PopularTimesChart
+              hourly={venue.hourly}
+              selectedHour={selectedHour}
+              onSelectHour={setSelectedHour}
+            />
+          ) : (
             <Text style={[styles.meta, { color: colors.textMuted }]}>
-              Not available for this venue right now.
+              No crowd data available yet for this venue.
             </Text>
           )}
+        </View>
+      )}
+
+      {venue.carparks && venue.carparks.length > 0 && (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Parking availability</Text>
+          {venue.carparks.map((cp) => (
+            <Text key={cp.label} style={[styles.meta, { color: colors.textMuted }]}>
+              {cp.label}: {cp.availableLots} lots available
+            </Text>
+          ))}
         </View>
       )}
 
@@ -147,6 +132,7 @@ export default function DetailScreen({ route, navigation }: Props) {
           ))}
         </View>
       )}
+      </Pressable>
     </ScrollView>
   );
 }
@@ -172,13 +158,4 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, paddingRight: 12 },
   altName: { fontSize: 15, fontWeight: "500" },
   meta: { fontSize: 13, marginTop: 2 },
-  checkButton: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  checkButtonText: { color: "#FFFFFF", fontWeight: "600", fontSize: 14 },
-  checkingRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  checkingText: { fontSize: 13, flex: 1 },
 });

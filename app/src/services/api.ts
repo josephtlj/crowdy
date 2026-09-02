@@ -2,7 +2,6 @@ import { Platform } from "react-native";
 import Constants from "expo-constants";
 import { Venue } from "../types/venue";
 import { RailLineSegment } from "../types/railLine";
-import { PopularTimesResult } from "../types/popularTimes";
 
 // Every screen talks to the app through this file only - screens never
 // change when the data source does. On a physical device/simulator, "localhost"
@@ -44,17 +43,4 @@ export async function getAlternatives(venue: Venue): Promise<Venue[]> {
 // alongside venues rather than re-fetched on every map interaction.
 export async function getRailLines(): Promise<RailLineSegment[]> {
   return getJson<RailLineSegment[]>("/lines");
-}
-
-// Slow (~15-20s) - drives a real headless browser server-side. Only call
-// this on an explicit User action for one specific venue, never in bulk.
-// Returns null both when the server has nothing (404 - a normal outcome,
-// not every venue has Popular Times available at every hour) and on any
-// other failure, since the caller only needs to know "did this work."
-export async function getPopularTimesForVenue(venueId: string): Promise<PopularTimesResult | null> {
-  try {
-    return await getJson<PopularTimesResult>(`/venues/${venueId}/popular-times`);
-  } catch {
-    return null;
-  }
 }

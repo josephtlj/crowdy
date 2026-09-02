@@ -12,6 +12,10 @@ export const CROWD_COLORS: Record<CrowdLevel, string> = {
   High: "#EF6C00",
   "Very High": "#C62828",
   Closed: "#757575",
+  // Not scraped yet (a mall Popular Times hasn't been cached for), distinct
+  // from Closed (which means we checked and it's shut) - a lighter grey so
+  // the two don't read as the same thing at a glance.
+  Unavailable: "#9E9E9E",
 };
 
 export function CrowdBadge({ level }: { level: CrowdLevel }) {
