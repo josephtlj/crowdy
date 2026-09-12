@@ -15,12 +15,62 @@ function resolveApiBaseUrl(): string {
 
 const API_BASE_URL = resolveApiBaseUrl();
 
+// Carries the HTTP status code, not just a message - lets a caller tell a
+// 401 (session expired/invalid - requireAuth on the server rejected the
+// token) apart from any other failure, so AuthContext can log out
+// cleanly instead of the app just silently failing to sync forever.
+export class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
+
 async function getJson<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`);
   if (!res.ok) {
-    throw new Error(`Crowdy server request failed (${res.status}): ${path}`);
+    throw new ApiError(res.status, `Crowdy server request failed (${res.status}): ${path}`);
   }
   return res.json();
+}
+
+// Surfaces the server's own { error: "..." } message when there is one
+// (e.g. "Invalid username or password") instead of a generic status-code
+// string, since auth/favourites callers show this text directly to the
+// User. `token`, when given, is sent the same way requireAuth on the
+// server expects it.
+async function postJson<T>(path: string, body: unknown, token?: string): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const payload = await res.json().catch(() => null);
+    throw new ApiError(res.status, payload?.error ?? `Crowdy server request failed (${res.status}): ${path}`);
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json();
+}
+
+async function authedGetJson<T>(path: string, token: string): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) {
+    throw new ApiError(res.status, `Crowdy server request failed (${res.status}): ${path}`);
+  }
+  return res.json();
+}
+
+async function authedDelete(path: string, token: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new ApiError(res.status, `Crowdy server request failed (${res.status}): ${path}`);
+  }
 }
 
 export async function getNearbyVenues(userLat: number, userLng: number): Promise<Venue[]> {
@@ -64,4 +114,36 @@ export async function refreshPopularTimesForVenue(venueId: string): Promise<Popu
   } catch {
     return null;
   }
+}
+
+export interface AuthSession {
+  token: string;
+  accountId: number;
+}
+
+export function signup(username: string, password: string): Promise<AuthSession> {
+  return postJson<AuthSession>("/auth/signup", { username, password });
+}
+
+export function login(username: string, password: string): Promise<AuthSession> {
+  return postJson<AuthSession>("/auth/login", { username, password });
+}
+
+export function getFavourites(token: string): Promise<string[]> {
+  return authedGetJson<string[]>("/favourites", token);
+}
+
+export function saveFavourite(token: string, venueId: string): Promise<void> {
+  return postJson("/favourites", { venueId }, token);
+}
+
+export function unsaveFavourite(token: string, venueId: string): Promise<void> {
+  return authedDelete(`/favourites/${venueId}`, token);
+}
+
+// Called once right after login with whatever was saved locally as a
+// guest, so those saves carry over into the account instead of being
+// left behind on just this one device.
+export function mergeFavourites(token: string, venueIds: string[]): Promise<void> {
+  return postJson("/favourites/merge", { venueIds }, token);
 }

@@ -22,13 +22,21 @@ import { Venue } from "../types/venue";
 import { MapRegion } from "../types/region";
 import { RailLineSegment } from "../types/railLine";
 import { LayerState, isVenueInLayers } from "../types/layers";
-import { getNearbyVenues, getRailLines } from "../services/api";
+import {
+  getNearbyVenues,
+  getRailLines,
+  getFavourites,
+  saveFavourite,
+  unsaveFavourite,
+  ApiError,
+} from "../services/api";
 import { haversineKm } from "../services/distance";
 import { loadSavedVenueIds, persistSavedVenueIds } from "../services/savedVenues";
 import { VenueRow } from "../components/VenueRow";
 import { VenueMap } from "../components/VenueMap";
 import { TabBar, TabKey } from "../components/TabBar";
 import { useTheme } from "../theme/ThemeContext";
+import { useAuth } from "../context/AuthContext";
 
 // Marina Bay, used only if the user denies location permission.
 const FALLBACK_REGION = { lat: 1.2838, lng: 103.8591 };
@@ -70,6 +78,7 @@ function isWithinRegion(venue: Venue, region: MapRegion): boolean {
 export default function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const auth = useAuth();
   const [venues, setVenues] = useState<Venue[]>([]);
   const [railLines, setRailLines] = useState<RailLineSegment[]>([]);
   const [region, setRegion] = useState<MapRegion | null>(null);
@@ -93,25 +102,69 @@ export default function HomeScreen({ navigation }: Props) {
     transit: false,
     venue: false,
   });
-  // On-device only for now (see savedVenues.ts) - loaded once on mount,
-  // written back to disk on every toggle.
+  // A 401 here means the server rejected the token itself (expired, or
+  // invalidated some other way) rather than a normal network hiccup - logs
+  // the User out cleanly (drops back to on-device storage) instead of
+  // silently failing to sync forever, which is what happened before this
+  // check existed.
+  const handleAuthError = useCallback(
+    (err: unknown) => {
+      if (err instanceof ApiError && err.status === 401) {
+        auth.logout();
+      }
+    },
+    [auth]
+  );
+
+  // Logged out: on-device only (see savedVenues.ts). Logged in: the
+  // account's real favourites (see AuthContext - logging in already
+  // merges whatever was saved locally into the account before this reads
+  // the server, so nothing from before login gets lost). Re-runs whenever
+  // auth state changes, not just once on mount, so logging in immediately
+  // swaps the source instead of showing stale local ids.
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   useEffect(() => {
-    loadSavedVenueIds().then(setSavedIds);
-  }, []);
+    if (auth.token) {
+      getFavourites(auth.token)
+        .then((ids) => setSavedIds(new Set(ids)))
+        .catch((err) => {
+          console.error("Failed to load favourites from account:", err);
+          handleAuthError(err);
+        });
+    } else {
+      loadSavedVenueIds().then(setSavedIds);
+    }
+  }, [auth.token, handleAuthError]);
 
-  // Functional-setState form (no `savedIds` dependency) so this is one
-  // stable reference for VenueRow's memoization, same reasoning as
-  // toggleSelection below.
-  const handleToggleSaved = useCallback((venueId: string) => {
-    setSavedIds((current) => {
-      const next = new Set(current);
-      if (next.has(venueId)) next.delete(venueId);
-      else next.add(venueId);
-      persistSavedVenueIds(next);
-      return next;
-    });
-  }, []);
+  // Depends on auth.token, so this reference does change on login/logout -
+  // rare enough (not a per-render/per-poll thing) that it doesn't work
+  // against VenueRow's memoization the way a reference changing every
+  // render would. Updates local state immediately either way (optimistic,
+  // no rollback on failure - matches the on-device version's own
+  // fire-and-forget persistence), then syncs to whichever store is
+  // current: the account if logged in, on-device storage otherwise.
+  const handleToggleSaved = useCallback(
+    (venueId: string) => {
+      setSavedIds((current) => {
+        const next = new Set(current);
+        const nowSaved = !next.has(venueId);
+        if (nowSaved) next.add(venueId);
+        else next.delete(venueId);
+
+        if (auth.token) {
+          const sync = nowSaved ? saveFavourite(auth.token, venueId) : unsaveFavourite(auth.token, venueId);
+          sync.catch((err) => {
+            console.error("Failed to sync favourite to account:", err);
+            handleAuthError(err);
+          });
+        } else {
+          persistSavedVenueIds(next);
+        }
+        return next;
+      });
+    },
+    [auth.token, handleAuthError]
+  );
 
   const listRef = useRef<FlatList<Venue>>(null);
 

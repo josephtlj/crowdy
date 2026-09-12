@@ -5,6 +5,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { RootStackParamList } from "./src/navigation/types";
 import { ThemeProvider, useTheme } from "./src/theme/ThemeContext";
+import { AuthProvider } from "./src/context/AuthContext";
 import HomeScreen from "./src/screens/HomeScreen";
 import DetailScreen from "./src/screens/DetailScreen";
 import SettingsScreen from "./src/screens/SettingsScreen";
@@ -71,9 +72,11 @@ function Navigation() {
 export default function App() {
   return (
     <ThemeProvider>
-      <SafeAreaProvider>
-        <Navigation />
-      </SafeAreaProvider>
+      <AuthProvider>
+        <SafeAreaProvider>
+          <Navigation />
+        </SafeAreaProvider>
+      </AuthProvider>
     </ThemeProvider>
   );
 }
