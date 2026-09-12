@@ -152,6 +152,14 @@ export function VenueMap({
         },
         300
       );
+    } catch (err) {
+      // Permission granted but the fix itself failed (no GPS set on an
+      // emulator, weak signal, momentarily unavailable) - same fallback
+      // philosophy as the denied-permission case above, just surfaced as
+      // an alert instead of silently doing nothing, since this one's a
+      // direct response to the User tapping the button.
+      console.error("Failed to get current location for recentring:", err);
+      Alert.alert("Location unavailable", "Couldn't get your current location. Try again in a moment.");
     } finally {
       setRecentring(false);
     }
@@ -159,7 +167,14 @@ export function VenueMap({
 
   const hasSelection = selectedVenueId !== null;
 
-  const visibleVenues = venues.filter((venue) => isVenueInLayers(venue, layers));
+  // The selected venue always renders, even if its layer is toggled off -
+  // otherwise searching for a venue/station while both layers are off (or
+  // just its own layer is off) pans the map to a marker that's actually
+  // invisible. Nothing else re-appears alongside it, so with both layers
+  // off this is genuinely the only marker shown until it's deselected.
+  const visibleVenues = venues.filter(
+    (venue) => isVenueInLayers(venue, layers) || venue.id === selectedVenueId
+  );
 
   return (
     <View style={styles.wrapper}>
