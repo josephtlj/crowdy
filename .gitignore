@@ -7,3 +7,9 @@ build/
 *.log
 .DS_Store
 server/data/
+
+# Claude Code project config - kept locally for AI-assisted development
+# context, deliberately never committed/pushed (team handover requirement).
+.claude/
+CLAUDE.md
+AGENTS.md
