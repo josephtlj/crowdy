@@ -12,7 +12,9 @@
         {
           "locationWhenInUsePermission": "Crowdy uses your location to show nearby crowd levels."
         }
-      ]
+      ],
+      "expo-status-bar",
+      "expo-font"
     ],
     "ios": {
       "supportsTablet": true
