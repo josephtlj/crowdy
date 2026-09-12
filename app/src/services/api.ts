@@ -44,3 +44,24 @@ export async function getAlternatives(venue: Venue): Promise<Venue[]> {
 export async function getRailLines(): Promise<RailLineSegment[]> {
   return getJson<RailLineSegment[]>("/lines");
 }
+
+export interface PopularTimesRefresh {
+  crowdPercent: number;
+  crowdLevel: Venue["crowdLevel"];
+  hourly: { hour: number; percent: number }[];
+  hours: { day: number; open: string; close: string }[];
+}
+
+// Forces a fresh Google Popular Times scrape for one venue - slow (~15-20s,
+// drives a real headless browser server-side, no cache short-circuit), so
+// only call this for the one venue whose Detail screen is currently open,
+// never in bulk. Returns null on any failure (including the normal "no
+// Popular Times for this venue" case) since the caller only needs to know
+// whether a fresh reading is available.
+export async function refreshPopularTimesForVenue(venueId: string): Promise<PopularTimesRefresh | null> {
+  try {
+    return await getJson<PopularTimesRefresh>(`/venues/${venueId}/popular-times`);
+  } catch {
+    return null;
+  }
+}

@@ -23,4 +23,7 @@ export interface Venue {
   // render the histogram straight from the venue itself, no separate
   // on-demand fetch needed.
   hourly?: { hour: number; percent: number }[];
+  // Opening hours per day of week (0=Sun..6=Sat), straight from Google's
+  // own formatting - a day with no entry means closed that day.
+  hours?: { day: number; open: string; close: string }[];
 }

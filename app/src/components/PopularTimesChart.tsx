@@ -50,6 +50,10 @@ export function PopularTimesChart({ hourly, selectedHour, onSelectHour }: Props)
   const selectedEntry = hourly.find((e) => e.hour === selectedHour) ?? hourly[0];
   const labelInterval = Math.max(1, Math.round(hourly.length / TARGET_LABEL_COUNT));
   const currentIndex = hourly.findIndex((e) => e.hour === currentHour);
+  // Scaled against this day's own peak, not a fixed 100 - Google's chart
+  // does the same, so a quiet venue (peaking at 18%, say) still shows a
+  // clearly readable shape instead of a near-flat line of tiny bars.
+  const peakPercent = Math.max(1, ...hourly.map((e) => e.percent));
 
   return (
     <View style={styles.container}>
@@ -77,7 +81,11 @@ export function PopularTimesChart({ hourly, selectedHour, onSelectHour }: Props)
           {hourly.map((entry) => {
             const isCurrent = entry.hour === currentHour;
             const isSelected = entry.hour === selectedHour;
-            const barHeight = Math.max(3, (entry.percent / 100) * CHART_HEIGHT);
+            // A genuinely closed hour (0%) shows no bar at all, matching
+            // Google's own chart, instead of a visible sliver implying some
+            // activity that isn't there - only a real non-zero reading gets
+            // the 3px floor that keeps it from disappearing entirely.
+            const barHeight = entry.percent === 0 ? 0 : Math.max(3, (entry.percent / peakPercent) * CHART_HEIGHT);
             const barColor = isCurrent ? CURRENT_COLOR : isSelected ? SELECTED_COLOR : colors.border;
             return (
               <TouchableOpacity

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { getVenues } from "../data/venues";
 import { haversineKm } from "../services/distance";
 import { findAlternatives } from "../services/alternatives";
-import { getPopularTimes } from "../services/popularTimes";
+import { refreshPopularTimesNow } from "../services/popularTimes";
 
 export const venuesRouter = Router();
 
@@ -43,17 +43,18 @@ venuesRouter.get("/:id/alternatives", async (req, res) => {
   res.json(findAlternatives(venue, venues));
 });
 
-// GET /venues/:id/popular-times -> on-demand Google Popular Times lookup.
-// Slow (~15-20s on a cache miss, since it drives a real headless browser) -
-// only call this for one specific venue at a time, never as part of the
-// bulk /venues list.
+// GET /venues/:id/popular-times -> forces a fresh Google Popular Times
+// scrape for this one venue, called automatically when its Detail screen
+// opens. Always slow (~15-20s, drives a real headless browser, no cache
+// short-circuit) - only ever call this for one specific venue at a time,
+// never as part of the bulk /venues list.
 venuesRouter.get("/:id/popular-times", async (req, res) => {
   const venues = await getVenues();
   const venue = venues.find((v) => v.id === req.params.id);
   if (!venue) {
     return res.status(404).json({ error: "Venue not found" });
   }
-  const result = await getPopularTimes(venue.id, venue.name);
+  const result = await refreshPopularTimesNow(venue.id, venue.name);
   if (!result) {
     return res.status(404).json({ error: "Popular Times not available for this venue right now" });
   }

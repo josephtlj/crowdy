@@ -3,9 +3,10 @@ import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/types";
 import { Venue } from "../types/venue";
-import { getVenueById, getAlternatives } from "../services/api";
+import { getVenueById, getAlternatives, refreshPopularTimesForVenue } from "../services/api";
 import { CrowdBadge } from "../components/CrowdBadge";
 import { PopularTimesChart } from "../components/PopularTimesChart";
+import { VenueHours } from "../components/VenueHours";
 import { useTheme } from "../theme/ThemeContext";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Detail">;
@@ -16,6 +17,7 @@ export default function DetailScreen({ route, navigation }: Props) {
   const [venue, setVenue] = useState<Venue | null>(null);
   const [alternatives, setAlternatives] = useState<Venue[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshingCrowd, setRefreshingCrowd] = useState(false);
   const [selectedHour, setSelectedHour] = useState(new Date().getHours());
 
   useEffect(() => {
@@ -28,6 +30,24 @@ export default function DetailScreen({ route, navigation }: Props) {
         setAlternatives(found.category === "Transit" ? [] : await getAlternatives(found));
       }
       setLoading(false);
+
+      // Shows the cached reading immediately (above), then kicks off a real
+      // fresh scrape for just this one venue in the background - takes the
+      // full ~15-20s, so this stays non-blocking rather than holding up the
+      // page. Transit already has real, official LTA crowd data, so this
+      // only applies to malls.
+      if (found && found.category !== "Transit") {
+        setRefreshingCrowd(true);
+        const fresh = await refreshPopularTimesForVenue(venueId);
+        if (fresh) {
+          setVenue((current) =>
+            current && current.id === venueId
+              ? { ...current, ...fresh, lastUpdated: new Date().toISOString() }
+              : current
+          );
+        }
+        setRefreshingCrowd(false);
+      }
     })();
   }, [venueId]);
 
@@ -73,18 +93,27 @@ export default function DetailScreen({ route, navigation }: Props) {
         )}
       </View>
 
-      <Text style={[styles.updated, { color: colors.textMuted }]}>
-        Updated {new Date(venue.lastUpdated).toLocaleTimeString()} · source: {venue.source}
-      </Text>
+      <View style={styles.updatedRow}>
+        <Text style={[styles.updated, { color: colors.textMuted }]}>
+          Updated {new Date(venue.lastUpdated).toLocaleTimeString()} · source: {venue.source}
+        </Text>
+        {refreshingCrowd && (
+          <>
+            <ActivityIndicator size="small" style={styles.updatedSpinner} />
+            <Text style={[styles.updated, { color: colors.textMuted }]}>Refreshing…</Text>
+          </>
+        )}
+      </View>
 
       {/* Transit already has real, official LTA crowd data - this is only
           useful for Venues, where the crowd figure above comes from Popular
-          Times (or is still "Unavailable" if this venue hasn't been
-          scraped yet - the batch scheduler fills this in automatically,
-          nothing for the user to trigger). */}
+          Times (or is still "Unavailable" until the automatic refresh
+          above finishes, or the batch scheduler's own daily pass reaches
+          it - either way, nothing for the user to manually trigger). */}
       {venue.category !== "Transit" && (
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Crowd Information</Text>
+          {venue.hours && <VenueHours hours={venue.hours} />}
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Typical Crowd Levels</Text>
           {venue.hourly && venue.hourly.length > 0 ? (
             <PopularTimesChart
               hourly={venue.hourly}
@@ -113,7 +142,7 @@ export default function DetailScreen({ route, navigation }: Props) {
       {alternatives.length > 0 && (
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Lower-crowd alternatives nearby
+            Alternatives nearby
           </Text>
           {alternatives.map((alt) => (
             <TouchableOpacity
@@ -145,7 +174,9 @@ const styles = StyleSheet.create({
   address: { fontSize: 14, marginTop: 4 },
   crowdRow: { flexDirection: "row", alignItems: "center", marginTop: 16, gap: 10 },
   percent: { fontSize: 14 },
-  updated: { fontSize: 12, marginTop: 8 },
+  updatedRow: { flexDirection: "row", alignItems: "center", marginTop: 8 },
+  updated: { fontSize: 12 },
+  updatedSpinner: { marginLeft: 10, marginRight: 6 },
   section: { marginTop: 28 },
   sectionTitle: { fontSize: 16, fontWeight: "600", marginBottom: 8 },
   altRow: {
