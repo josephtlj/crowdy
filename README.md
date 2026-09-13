@@ -24,19 +24,38 @@ SC2006 Software Engineering group project (SCSJ Group 3).
 
 ## Architecture
 
-Two halves: the Expo app talks only to the Crowdy backend, never directly to any external data source. The backend pulls together several independent sources into one venue list, and separately owns a MySQL database for accounts/favourites.
+The app never talks to any external data source directly — only to the Crowdy backend. The backend pulls together several independent sources into one venue list, and separately owns a MySQL database for accounts/favourites.
 
-- **App (Expo)** talks only to **Backend (Express)**, over `/venues`, `/lines`, `/auth`, `/favourites`.
-- **Backend** talks to three independent external data sources (below) to build its venue list, and to **MySQL** for accounts/favourites — the app never touches either directly.
+```mermaid
+flowchart LR
+    LTA[LTA DataMall]
+    GPT[Google Popular Times]
+    SG[sgtrainstatus.com]
+    OM[OneMap]
+    BE["Backend — Express\n/venues /lines /auth /favourites"]
+    APP[App — Expo]
+    DB[("MySQL\naccounts, favourites")]
+
+    LTA -- "live, real-time" --> BE
+    GPT -- "daily + on-demand" --> BE
+    SG -. "one-off, compiled\nto static data" .-> BE
+    OM -. "build-time only" .-> BE
+    BE <-- "REST API" --> APP
+    BE --> DB
+```
+
+*(Dashed arrows = one-off/build-time only, not fetched while the app is running.)*
 
 **Data sources:**
 
-- **LTA DataMall** — official real-time MRT/LRT platform crowd density (`server/src/services/lta.ts`)
-- **Google Popular Times** — no official API exists for this; the backend drives a real headless browser through the same flow a person browsing Google Maps would (`server/src/services/popularTimes.ts`). Runs once daily for the full venue list, plus a fresh check whenever a venue's Detail screen opens.
-- **sgtrainstatus.com / sgtrains.com** — real first/last train timings per MRT/LRT station, compiled once via a one-off script (`server/scripts/build-station-hours.ts`) into a static `server/src/data/stationHours.ts`, not fetched at runtime.
-- **OneMap** — free government geocoding, used once at build time to resolve mall coordinates (`server/scripts/build-mall-list.ts`)
+| Source | Provides | Where in code |
+|---|---|---|
+| **LTA DataMall** | Official real-time MRT/LRT platform crowd density | `server/src/services/lta.ts` |
+| **Google Popular Times** | Mall/venue crowd levels — no official API exists, so the backend drives a real headless browser through the same flow a person browsing Google Maps would. Runs daily for the full list, plus on-demand whenever a venue's page opens. | `server/src/services/popularTimes.ts` |
+| **sgtrainstatus.com / sgtrains.com** | Real first/last train timings per station, compiled once into a static file, not fetched at runtime | `server/scripts/build-station-hours.ts` → `server/src/data/stationHours.ts` |
+| **OneMap** | Free government geocoding, used once at build time to resolve mall coordinates | `server/scripts/build-mall-list.ts` |
 
-**Database:** MySQL, currently hosted on Aiven's free tier (`accounts` and `favourites` tables — everything else, including all crowd data, lives in the backend's own cache files, not the database). Local development can use a local MySQL install instead; see `server/.env` for how to switch between the two.
+**Database:** MySQL, currently hosted on [Aiven](https://aiven.io)'s free tier — just `accounts` and `favourites`; all crowd data lives in the backend's own cache files, not the database. Local development can point at a local MySQL install instead — see `server/.env` for how to switch between the two.
 
 ## Testing platform
 
