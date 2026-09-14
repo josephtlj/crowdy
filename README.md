@@ -1,6 +1,15 @@
 # Crowdy
 
-Part of NTU SC2006 Software Engineering
+Part of NTU SC2006 Software Engineering.
+
+
+<p align="center">
+  <img src="images/IMG_4813.jpg" width="150" />
+  <img src="images/IMG_4817.jpg" width="150" />
+  <img src="images/IMG_4816.jpg" width="150" />
+  <img src="images/IMG_4815.jpg" width="150" />
+</p>
+
 
 ## Overview
 
