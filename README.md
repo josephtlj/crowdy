@@ -1,10 +1,10 @@
 # Crowdy
 
-### SC2006 Software Engineering · SCSJ Group 3
+Part of NTU SC2006 Software Engineering
 
 ## Overview
 
-Crowdy is a Singapore-only app for checking real-time crowd levels at MRT/LRT stations and shopping malls/attractions before heading there, with lower-crowd alternatives of the same type surfaced nearby when one exists. It's built as two independent pieces — an Expo/React Native app and a Node/Express backend — so the frontend never has to know where any individual piece of data actually comes from.
+Crowdy is a Singapore-only app for checking real-time crowd levels at MRT/LRT stations and shopping malls/attractions before heading there, with lower-crowd alternatives of the same type surfaced nearby when one exists. It's built as two independent pieces — an Expo/React Native app and a Node/Express backend.
 
 ```mermaid
 flowchart LR
