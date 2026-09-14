@@ -170,27 +170,12 @@ function cleanSearchName(name: string): string {
   return name.replace(/\s+P\d+$/i, "");
 }
 
-// Text-only debugging (page URL, body preview) hasn't been enough to tell
-// whether a failed scrape is looking at a genuinely broken/degraded page
-// (e.g. suspected bot-detection serving a stripped-down layout) versus
-// something more mundane (a slow-loading widget, an unexpected cookie/consent
-// screen) - a screenshot shows what actually rendered. Saved into
-// server/data/ (already gitignored) rather than scratchpad, since this needs
-// to survive and accumulate across the scheduler's own background runs, not
-// just one interactive session.
-const SCREENSHOT_DIR = path.join(__dirname, "..", "..", "data", "debug-screenshots");
-
-async function saveFailureScreenshot(page: import("puppeteer").Page, venueName: string): Promise<string | null> {
-  try {
-    fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
-    const safeName = venueName.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
-    const filePath = path.join(SCREENSHOT_DIR, `${Date.now()}-${safeName}.png`);
-    await page.screenshot({ path: filePath as `${string}.png`, fullPage: true });
-    return filePath;
-  } catch (err) {
-    console.error("[popularTimes DEBUG] Failed to save failure screenshot:", err);
-    return null;
-  }
+// A raw Puppeteer error's own console.error output is its full stack trace
+// (a dozen+ lines through CDP/protocol internals that mean nothing here) -
+// this keeps the terminal down to one line per failure: what actually
+// happened, for which venue.
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 async function scrapePopularTimes(venueName: string): Promise<PopularTimesResult | null> {
@@ -253,11 +238,7 @@ async function scrapePopularTimes(venueName: string): Promise<PopularTimesResult
       await sleep(600 + Math.random() * 300);
     }
     if (!found) {
-      console.error("[popularTimes DEBUG] No Popular Times bars found after scrolling. Page URL:", page.url());
-      const bodyPreview = await page.evaluate(() => document.body?.innerText.slice(0, 500) ?? "(no body)");
-      console.error("[popularTimes DEBUG] body preview:", bodyPreview);
-      const screenshotPath = await saveFailureScreenshot(page, venueName);
-      if (screenshotPath) console.error("[popularTimes DEBUG] screenshot saved:", screenshotPath);
+      console.error(`Popular Times: no data found for "${venueName}" (page never showed the bars after scrolling)`);
       return null;
     }
 
@@ -358,7 +339,7 @@ async function scrapePopularTimes(venueName: string): Promise<PopularTimesResult
 // for anything called in bulk.
 export async function refreshPopularTimesNow(venueId: string, venueName: string): Promise<CurrentReading | null> {
   const result = await scrapePopularTimes(venueName).catch((err) => {
-    console.error(`Popular Times refresh failed for "${venueName}":`, err);
+    console.error(`Popular Times: refresh failed for "${venueName}" - ${errorMessage(err)}`);
     return null;
   });
 
@@ -425,7 +406,7 @@ export async function refreshAllPopularTimes(
         failed++;
       }
     } catch (err) {
-      console.error(`[popularTimes] Batch refresh failed for "${venue.name}":`, err);
+      console.error(`Popular Times: batch refresh failed for "${venue.name}" - ${errorMessage(err)}`);
       if (!cache.has(venue.id)) cache.set(venue.id, { result: null, timestamp: Date.now() });
       failed++;
     }
