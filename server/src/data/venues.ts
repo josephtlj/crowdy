@@ -6,6 +6,7 @@ import { fetchStationCrowdLevels, mapCrowdCode } from "../services/lta";
 import { fetchLtaCarparkRecords } from "../services/carparks";
 import { spreadOverlappingVenues } from "../services/declutter";
 import { getCachedPopularTimes } from "../services/popularTimes";
+import { HEATMAP_RADII_M } from "../services/heatmap";
 
 // A bit looser than the scheduler's own daily cadence, as slack for a pass
 // running long or a tick getting delayed - a venue only shows "Unavailable"
@@ -58,6 +59,7 @@ async function getMallVenues(): Promise<Venue[]> {
       carparks,
       hourly: popularTimes?.hourly,
       hours: popularTimes?.hours,
+      heatmapRadiusM: HEATMAP_RADII_M.get(mall.id),
     };
     return venue;
   });

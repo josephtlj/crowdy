@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { StyleSheet, View, TouchableOpacity, Text, Alert } from "react-native";
-import MapView, { Marker, Polyline, Region, MapPressEvent } from "react-native-maps";
+import { StyleSheet, View, TouchableOpacity, Text, Alert, Platform } from "react-native";
+import MapView, { Marker, Polyline, Overlay, Region, MapPressEvent } from "react-native-maps";
+import { Ionicons } from "@expo/vector-icons";
 // Wraps MapView with screen-proximity clustering (built on supercluster) -
 // mixed across all venue categories, purely based on on-screen overlap at
 // the current zoom level, not category or region. Its own `mapRef` prop
@@ -15,6 +16,7 @@ import { StationDot } from "./StationDot";
 import { PIN_COLORS } from "./pinColors";
 import { useTheme } from "../theme/ThemeContext";
 import { DARK_MAP_STYLE } from "../theme/darkMapStyle";
+import { getHeatmapBounds, getHeatmapImageUrl, HeatmapBounds } from "../services/api";
 
 // react-native-map-clustering reads `cluster` off each Marker's props at
 // runtime to decide whether to include it in clustering, but that prop
@@ -70,6 +72,26 @@ export function VenueMap({
   // a given transition need this, and only for the brief moment they change.
   const [trackingIds, setTrackingIds] = useState<Set<string>>(new Set());
   const prevSelectedRef = useRef<string | null>(null);
+  // Heatmap is iOS-only for now (see Team Briefing) - Android's map is
+  // already broken under Expo Go regardless, so there's no working surface
+  // to add it to there yet.
+  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [heatmapBounds, setHeatmapBounds] = useState<HeatmapBounds | null>(null);
+  const [heatmapImageUrl, setHeatmapImageUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!showHeatmap) return;
+    // Bounds are fixed (only change if the server's own constant does), so
+    // fetching once and keeping it is enough - no need to re-fetch on every
+    // toggle. The image itself is refetched with a fresh cache-busting URL
+    // each time, since crowd data (and so the image) does change over time.
+    if (!heatmapBounds) {
+      getHeatmapBounds()
+        .then(setHeatmapBounds)
+        .catch((err) => console.error("Failed to load heatmap bounds:", err));
+    }
+    setHeatmapImageUrl(getHeatmapImageUrl());
+  }, [showHeatmap, heatmapBounds]);
 
   useEffect(() => {
     if (!selectedVenueId) return;
@@ -201,6 +223,22 @@ export function VenueMap({
         // that showing individual pins would genuinely overlap.
         minPoints={4}
       >
+        {showHeatmap && heatmapBounds && heatmapImageUrl && (
+          // One pre-rendered, blurred, colour-graded PNG (see
+          // server/src/services/heatmapImage.ts) positioned over its exact
+          // geographic bounds - react-native-maps' <Circle> has no gradient
+          // fill, so per-venue circles could only ever stack as hard-edged
+          // discs. Rendering it server-side as a real soft-edged, blended
+          // image gets an actual heatmap look instead.
+          <Overlay
+            image={{ uri: heatmapImageUrl }}
+            bounds={[
+              [heatmapBounds.north, heatmapBounds.east],
+              [heatmapBounds.south, heatmapBounds.west],
+            ]}
+          />
+        )}
+
         {layers.transit &&
           railLines.map((line, i) => (
             <Polyline
@@ -256,6 +294,23 @@ export function VenueMap({
         })}
       </View>
 
+      {Platform.OS === "ios" && (
+        <TouchableOpacity
+          style={[
+            styles.heatmapButton,
+            { backgroundColor: showHeatmap ? colors.accent : mode === "dark" ? "#000000" : "#FFFFFF" },
+          ]}
+          onPress={() => setShowHeatmap((prev) => !prev)}
+          accessibilityLabel="Toggle crowd heatmap"
+        >
+          <Ionicons
+            name={showHeatmap ? "flame" : "flame-outline"}
+            size={20}
+            color={showHeatmap ? "#FFFFFF" : colors.accent}
+          />
+        </TouchableOpacity>
+      )}
+
       <TouchableOpacity
         style={[
           styles.recentreButton,
@@ -293,6 +348,22 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   layerButtonText: { fontSize: 10.5, fontWeight: "700" },
+  heatmapButton: {
+    position: "absolute",
+    right: 14,
+    // Stacked directly above the recentre button (42 height + 10 gap).
+    bottom: 86,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
   recentreButton: {
     position: "absolute",
     right: 14,

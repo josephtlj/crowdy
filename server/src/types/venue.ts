@@ -26,4 +26,8 @@ export interface Venue {
   // Opening hours per day of week (0=Sun..6=Sat), straight from Google's
   // own formatting - a day with no entry means closed that day.
   hours?: { day: number; open: string; close: string }[];
+  // How far this venue's colour reaches on the heatmap overlay, in metres
+  // - see services/heatmap.ts. Venue category only (Transit excluded from
+  // the heatmap for now).
+  heatmapRadiusM?: number;
 }

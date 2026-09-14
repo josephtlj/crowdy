@@ -147,3 +147,26 @@ export function unsaveFavourite(token: string, venueId: string): Promise<void> {
 export function mergeFavourites(token: string, venueIds: string[]): Promise<void> {
   return postJson("/favourites/merge", { venueIds }, token);
 }
+
+export interface HeatmapBounds {
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+}
+
+// The exact geographic box the server rendered heatmap image.png against -
+// has to match precisely for the overlay image to land on the right spot,
+// so this is fetched from the server rather than hardcoding a second copy
+// of the same numbers on this side.
+export function getHeatmapBounds(): Promise<HeatmapBounds> {
+  return getJson<HeatmapBounds>("/heatmap/bounds");
+}
+
+// A plain URL, not a fetch - the app hands this straight to an <Overlay>'s
+// image prop, which loads it like any other image. The timestamp busts
+// React Native's own image cache so re-enabling the toggle after crowd data
+// has moved on actually shows a fresh image instead of a stale cached one.
+export function getHeatmapImageUrl(): string {
+  return `${API_BASE_URL}/heatmap/image.png?t=${Date.now()}`;
+}

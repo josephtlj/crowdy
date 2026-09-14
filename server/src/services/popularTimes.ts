@@ -102,7 +102,9 @@ const cache = loadCache();
 // through ~18 hours including sleep/wake). Re-checking `.connected` and
 // relaunching on demand fixes that without needing a server restart.
 let browserPromise: Promise<Browser> | null = null;
-async function getBrowser(): Promise<Browser> {
+// Exported so heatmapImage.ts can render its canvas in this same shared
+// Chromium instead of launching a second one just for that.
+export async function getBrowser(): Promise<Browser> {
   if (browserPromise) {
     const existing = await browserPromise;
     if (existing.connected) return existing;
@@ -118,6 +120,17 @@ async function getBrowser(): Promise<Browser> {
   }
   browserPromise = puppeteerExtra.launch({ headless: true }) as Promise<Browser>;
   return browserPromise;
+}
+
+// For graceful shutdown (see index.ts) - without this, Ctrl+C leaves the
+// launched Chromium process (and whatever page it's mid-navigation on)
+// running past the Node process itself, which is part of why the server
+// sometimes doesn't fully let go of its port right away.
+export async function closeBrowser(): Promise<void> {
+  if (!browserPromise) return;
+  const existing = await browserPromise.catch(() => null);
+  browserPromise = null;
+  await existing?.close().catch(() => existing.process()?.kill());
 }
 
 function mapCrowdLevel(percent: number): CrowdLevel {
@@ -155,6 +168,29 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // itself. Stripping it gets back to the real, popular-times-bearing page.
 function cleanSearchName(name: string): string {
   return name.replace(/\s+P\d+$/i, "");
+}
+
+// Text-only debugging (page URL, body preview) hasn't been enough to tell
+// whether a failed scrape is looking at a genuinely broken/degraded page
+// (e.g. suspected bot-detection serving a stripped-down layout) versus
+// something more mundane (a slow-loading widget, an unexpected cookie/consent
+// screen) - a screenshot shows what actually rendered. Saved into
+// server/data/ (already gitignored) rather than scratchpad, since this needs
+// to survive and accumulate across the scheduler's own background runs, not
+// just one interactive session.
+const SCREENSHOT_DIR = path.join(__dirname, "..", "..", "data", "debug-screenshots");
+
+async function saveFailureScreenshot(page: import("puppeteer").Page, venueName: string): Promise<string | null> {
+  try {
+    fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
+    const safeName = venueName.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+    const filePath = path.join(SCREENSHOT_DIR, `${Date.now()}-${safeName}.png`);
+    await page.screenshot({ path: filePath as `${string}.png`, fullPage: true });
+    return filePath;
+  } catch (err) {
+    console.error("[popularTimes DEBUG] Failed to save failure screenshot:", err);
+    return null;
+  }
 }
 
 async function scrapePopularTimes(venueName: string): Promise<PopularTimesResult | null> {
@@ -220,6 +256,8 @@ async function scrapePopularTimes(venueName: string): Promise<PopularTimesResult
       console.error("[popularTimes DEBUG] No Popular Times bars found after scrolling. Page URL:", page.url());
       const bodyPreview = await page.evaluate(() => document.body?.innerText.slice(0, 500) ?? "(no body)");
       console.error("[popularTimes DEBUG] body preview:", bodyPreview);
+      const screenshotPath = await saveFailureScreenshot(page, venueName);
+      if (screenshotPath) console.error("[popularTimes DEBUG] screenshot saved:", screenshotPath);
       return null;
     }
 
