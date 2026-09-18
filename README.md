@@ -1,6 +1,6 @@
 # Crowdy
 
-Part of NTU SC2006 Software Engineering.
+NTU SC2006 Software Engineering.
 
 
 <p align="center">
