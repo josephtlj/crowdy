@@ -178,7 +178,20 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-async function scrapePopularTimes(venueName: string): Promise<PopularTimesResult | null> {
+interface ScrapeAttempt {
+  result: PopularTimesResult | null;
+  // Only true for the specific "bars never loaded after scrolling" case -
+  // confirmed directly to be a transient load-timing flake (a batch-run
+  // failure for VivoCity was immediately followed by a successful
+  // on-demand attempt for the exact same venue, page title and content
+  // otherwise identical - not a block, just sometimes too slow to finish
+  // within the scroll budget). Other null cases (e.g. bars existed but
+  // nothing parsed) aren't retried - retrying those wouldn't address
+  // whatever actually went wrong.
+  retry: boolean;
+}
+
+async function scrapePopularTimesAttempt(venueName: string): Promise<ScrapeAttempt> {
   const browser = await getBrowser();
   const page = await browser.newPage();
   try {
@@ -238,8 +251,21 @@ async function scrapePopularTimes(venueName: string): Promise<PopularTimesResult
       await sleep(600 + Math.random() * 300);
     }
     if (!found) {
-      console.error(`Popular Times: no data found for "${venueName}" (page never showed the bars after scrolling)`);
-      return null;
+      // Lightweight, console-only diagnostic (no screenshot files this
+      // time - the earlier version of this accumulated tens of megabytes
+      // with little payoff). A page title/snippet is usually enough to
+      // tell a genuine "no Popular Times for this venue" apart from
+      // Google serving a CAPTCHA/"unusual traffic" block instead.
+      const title = await page.title().catch(() => "(no title)");
+      const snippet = await page
+        .evaluate(() => document.body?.innerText.slice(0, 300) ?? "(no body)")
+        .catch(() => "(snippet unavailable)");
+      console.error(
+        `Popular Times: no data found for "${venueName}" (page never showed the bars after scrolling)\n` +
+          `  page title: ${title}\n` +
+          `  body snippet: ${snippet.replace(/\n+/g, " ")}`
+      );
+      return { result: null, retry: true };
     }
 
     const ariaBars = await page.evaluate(() =>
@@ -258,7 +284,7 @@ async function scrapePopularTimes(venueName: string): Promise<PopularTimesResult
       })
       .filter((x): x is { hour: number; percent: number } => x !== null);
 
-    if (parsed.length === 0) return null;
+    if (parsed.length === 0) return { result: null, retry: false };
 
     // Google's day-tab panels are all present in the DOM at once - querying
     // aria-labels without clicking any day tab already returns a full
@@ -325,10 +351,22 @@ async function scrapePopularTimes(venueName: string): Promise<PopularTimesResult
       }
     }
 
-    return { weekly, hours };
+    return { result: { weekly, hours }, retry: false };
   } finally {
     await page.close();
   }
+}
+
+// Retries once, with a completely fresh page, specifically for the
+// scroll-timeout case identified above - recovers most of those without
+// masking a genuine "no Popular Times for this venue" result, since that
+// case is marked non-retryable at the source.
+async function scrapePopularTimes(venueName: string): Promise<PopularTimesResult | null> {
+  const first = await scrapePopularTimesAttempt(venueName);
+  if (!first.retry) return first.result;
+  console.error(`Popular Times: retrying "${venueName}" once after a scroll timeout...`);
+  const second = await scrapePopularTimesAttempt(venueName);
+  return second.result;
 }
 
 // On-demand path: triggered automatically whenever a venue's Detail screen
