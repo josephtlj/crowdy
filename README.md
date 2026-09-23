@@ -56,7 +56,7 @@ flowchart LR
 ## Architecture & Design Patterns
 
 ### Backend Architecture
-1. **Resource-oriented routing** — one router per resource (`/venues`, `/lines`, `/auth`, `/favourites`, `/heatmap`), each owning only its own resource's endpoints.
+1. **Resource-oriented routing** — one router per resource (`/venues`, `/lines`, `/auth`, `/favourites`, `/heatmap`, `/directions`), each owning only its own resource's endpoints.
 2. **Middleware for cross-cutting concerns** — `requireAuth` verifies the bearer token once and attaches the account id (via `res.locals`, not a global type augmentation) before any protected route body runs; `cors()` and `express.json()` are applied globally.
 3. **Stateless authentication** — JWT bearer tokens (30-day expiry), not server-side sessions. Every request carries everything needed to authenticate it, so the backend holds no per-user connection state.
 4. **Service-layer separation** — each external concern (LTA, carpark lots, Google Popular Times, the heatmap image, alternatives, distance math, auth, the DB pool) lives in its own file under `services/`. Simple resource CRUD (accounts, favourites) queries the database directly from its route; anything that talks to an external source or does real computation goes through a dedicated service instead.
@@ -102,6 +102,8 @@ Routes depend on service-layer functions (`getVenues()`, `refreshPopularTimesNow
    DB_PASSWORD=<db password>
    DB_SSL_CA_PATH=./certs/aiven-ca.pem   # required for the hosted (Aiven) database; omit for a local MySQL install
    JWT_SECRET=<any random string>
+   ONEMAP_EMAIL=<your OneMap account email>       # free account at onemap.gov.sg, used for directions
+   ONEMAP_PASSWORD=<your OneMap account password>
    ```
 3. `npm run dev` — starts the backend at `http://localhost:4000`
 
@@ -135,6 +137,9 @@ Routes depend on service-layer functions (`getVenues()`, `refreshPopularTimesNow
 - `GET /heatmap/image.png` — the pre-rendered crowd heatmap overlay
 - `GET /heatmap/bounds` — the geographic box that image is rendered against
 
+### Directions — `/directions`
+- `GET /directions?fromLat=&fromLng=&toId=&mode=` — one route from the user's position to a venue. `mode` is `transit` (default), `walk`, `drive` or `cycle`; one mode per request, since each is its own upstream lookup. Route geometry comes back already decoded, split into per-leg segments carrying their own colour, and every transit leg is annotated with the live crowd level at the station it boards at.
+
 ## External APIs & Services
 
 ### LTA DataMall
@@ -144,7 +149,11 @@ Official real-time MRT/LRT platform crowd density, and live carpark lot counts (
 No official API exists for this, so the backend drives a real headless browser through the same flow a person browsing Google Maps would — daily for the full venue list, plus on-demand whenever a specific venue's page is opened in the app.
 
 ### OneMap
-Free government geocoding, used once at build time (`server/scripts/build-mall-list.ts`) to resolve mall coordinates — not called at runtime.
+Two separate uses of the same free government service:
+- **Geocoding** — used once at build time (`server/scripts/build-mall-list.ts`) to resolve mall coordinates. Unauthenticated, not called at runtime.
+- **Routing** — called at runtime for the Directions feature (walking, driving, cycling and public transport, the last running on LTA's own timetable data). This one is authenticated: the backend exchanges `ONEMAP_EMAIL`/`ONEMAP_PASSWORD` for an access token, which it caches in memory and reuses until close to expiry rather than re-authenticating per request.
+
+Chosen over Google Directions because it needs no billing account or credit card, is authoritative for Singapore (the only country this app covers), and keeps the credential server-side either way.
 
 ### Aiven
 Hosts the MySQL database (free tier) that `accounts` and `favourites` live in — the only part of Crowdy backed by a real database; everything else is the backend's own cache files.

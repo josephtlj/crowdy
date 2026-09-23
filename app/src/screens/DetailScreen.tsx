@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, Pressable } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/types";
 import { Venue } from "../types/venue";
@@ -105,6 +106,14 @@ export default function DetailScreen({ route, navigation }: Props) {
         )}
       </View>
 
+      <TouchableOpacity
+        style={[styles.directionsButton, { backgroundColor: colors.accent }]}
+        onPress={() => navigation.navigate("Directions", { venueId: venue.id })}
+      >
+        <Ionicons name="navigate" size={17} color="#FFFFFF" />
+        <Text style={styles.directionsLabel}>Directions</Text>
+      </TouchableOpacity>
+
       {/* Transit already has real, official LTA crowd data - this is only
           useful for Venues, where the crowd figure above comes from Popular
           Times (or is still "Unavailable" until the automatic refresh
@@ -177,6 +186,16 @@ const styles = StyleSheet.create({
   updatedRow: { flexDirection: "row", alignItems: "center", marginTop: 8 },
   updated: { fontSize: 12 },
   updatedSpinner: { marginLeft: 10, marginRight: 6 },
+  directionsButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 18,
+    paddingVertical: 13,
+    borderRadius: 12,
+  },
+  directionsLabel: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
   section: { marginTop: 28 },
   sectionTitle: { fontSize: 16, fontWeight: "600", marginBottom: 8 },
   altRow: {
