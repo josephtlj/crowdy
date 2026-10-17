@@ -6,6 +6,7 @@ import { CategoryPin } from "./CategoryPin";
 import { VenueCategory, CrowdLevel } from "../types/venue";
 import { ThemeColors } from "../theme/ThemeContext";
 import { getTodayStatus, OpenHoursEntry } from "../services/hours";
+import { formatUpdatedAt } from "../services/updatedAt";
 
 interface Props {
   id: string;
@@ -114,7 +115,7 @@ function VenueRowBase({
                 small handful of LRT loop stations it isn't covered for)
                 just shows nothing extra here rather than a guess. */}
             {transitStatus && `${transitStatus.open ? "Operating" : "Closed"}${transitStatus.detail ? ` · ${transitStatus.detail}` : ""} · `}
-            updated {new Date(lastUpdated).toLocaleTimeString()}
+            updated {formatUpdatedAt(lastUpdated)}
           </Text>
           {/* Transit stations are fixed destinations, not interchangeable
               like malls/attractions - no "alternative" makes sense. */}

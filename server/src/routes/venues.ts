@@ -58,5 +58,6 @@ venuesRouter.get("/:id/popular-times", async (req, res) => {
   if (!result) {
     return res.status(404).json({ error: "Popular Times not available for this venue right now" });
   }
-  res.json(result);
+  const { scrapedAt, ...reading } = result;
+  res.json({ ...reading, lastUpdated: new Date(scrapedAt).toISOString() });
 });

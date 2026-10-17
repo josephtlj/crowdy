@@ -23,14 +23,14 @@ flowchart LR
     OM[OneMap]
     BE["Backend — Express\n/venues /lines /auth /favourites /heatmap"]
     APP[App — Expo]
-    DB[("MySQL\naccounts, favourites")]
+    DB[("MySQL\naccounts, favourites,\nshared Popular Times cache")]
 
     LTA -- "live, real-time" --> BE
     GPT -- "daily + on-demand" --> BE
     SG -. "one-off, compiled\nto static data" .-> BE
     OM -. "build-time only" .-> BE
     BE <-- "REST API" --> APP
-    BE --> DB
+    BE <--> DB
 ```
 
 *(Dashed arrows = one-off/build-time only, not fetched while the app is running.)*
@@ -147,7 +147,11 @@ No official API exists for this, so the backend drives a real headless browser t
 Free government geocoding, used once at build time (`server/scripts/build-mall-list.ts`) to resolve mall coordinates — not called at runtime.
 
 ### Aiven
-Hosts the MySQL database (free tier) that `accounts` and `favourites` live in — the only part of Crowdy backed by a real database; everything else is the backend's own cache files.
+Hosts the MySQL database (free tier) for:
+- `accounts` and `favourites`
+- `popular_times_cache` — a shared copy of the Popular Times cache, so the whole team's backends work from one set of scraped data instead of each scraping every venue separately. Each backend syncs with it on startup, every 15 minutes, and before its daily batch, and still keeps its own local copy, so the app keeps working from that copy if the database is unreachable. The table is created automatically on first run.
+
+Everything else lives in the backend's own cache files.
 
 ## Security Features
 - Passwords hashed with bcrypt (`bcryptjs`) — never stored or logged in plain text.
@@ -182,7 +186,7 @@ crowdy/
 │   │   └── types/           # Venue type (kept manually in sync with app/src/types/venue.ts)
 │   ├── scripts/             # One-off build-time scripts (mall geocoding, station hours, DB schema init)
 │   ├── certs/               # Aiven CA certificate (safe to commit - verifies server identity only, grants no access)
-│   └── data/                # Runtime caches (gitignored) - Popular Times cache, carpark history
+│   └── data/                # Runtime caches (gitignored) - local copy of the Popular Times cache, carpark history
 │
 └── docs/                    # SDLC deliverables - not created yet; written in one pass once the app itself is feature-complete
 ```
