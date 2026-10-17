@@ -4,6 +4,7 @@ import puppeteerExtra from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import type { Browser } from "puppeteer";
 import { CrowdLevel } from "../types/venue";
+import { loadStoredEntries, storeEntry, StoredEntry } from "./popularTimesStore";
 
 puppeteerExtra.use(StealthPlugin());
 
@@ -94,6 +95,60 @@ function saveCache(map: Map<string, CacheEntry>): void {
 }
 
 const cache = loadCache();
+
+// Every cache write goes through here: memory, the local file, and the
+// shared database. The database write isn't awaited - a slow or asleep
+// database must never hold up a scrape.
+function recordEntry(venueId: string, entry: CacheEntry): void {
+  cache.set(venueId, entry);
+  saveCache(cache);
+  void storeEntry(venueId, entry);
+}
+
+// Entries scraped before the full-week format existed can't be used - the
+// same rule loadCache applies to the local file.
+function isUsable(entry: StoredEntry): entry is CacheEntry {
+  return entry.result === null || Array.isArray((entry.result as PopularTimesResult).weekly);
+}
+
+// A database that's asleep can take a while to refuse a connection. Bounded
+// so the scheduler waiting on a sync can't stall behind it.
+const SYNC_TIMEOUT_MS = 15 * 1000;
+
+// Two-way sync with the shared database: takes anything a teammate scraped
+// more recently than this machine, and uploads anything this machine has
+// that's newer than the shared copy. The upload half is also what moves an
+// existing local cache into the database the first time this runs.
+export async function syncPopularTimesWithDb(): Promise<void> {
+  const stored = await Promise.race([
+    loadStoredEntries(),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), SYNC_TIMEOUT_MS)),
+  ]);
+  if (!stored) return;
+
+  let pulled = 0;
+  for (const [venueId, entry] of stored) {
+    const local = cache.get(venueId);
+    if (isUsable(entry) && (!local || entry.timestamp > local.timestamp) && (entry.result !== null || !local?.result)) {
+      cache.set(venueId, entry);
+      pulled++;
+    }
+  }
+  if (pulled > 0) saveCache(cache);
+
+  let pushed = 0;
+  for (const [venueId, entry] of cache) {
+    const remote = stored.get(venueId);
+    if (!remote || entry.timestamp > remote.timestamp) {
+      await storeEntry(venueId, entry);
+      pushed++;
+    }
+  }
+
+  if (pulled > 0 || pushed > 0) {
+    console.log(`[popularTimes] Synced with database: ${pulled} pulled, ${pushed} pushed.`);
+  }
+}
 
 // A single long-lived browser instance is reused across lookups rather than
 // relaunching per-request - but the underlying Chrome DevTools Protocol
@@ -257,13 +312,20 @@ async function scrapePopularTimesAttempt(venueName: string): Promise<ScrapeAttem
       // tell a genuine "no Popular Times for this venue" apart from
       // Google serving a CAPTCHA/"unusual traffic" block instead.
       const title = await page.title().catch(() => "(no title)");
-      const snippet = await page
-        .evaluate(() => document.body?.innerText.slice(0, 300) ?? "(no body)")
-        .catch(() => "(snippet unavailable)");
+      const bodyText = await page.evaluate(() => document.body?.innerText ?? "").catch(() => "");
+
+      // Google Maps hides the chart while a venue is closed, so a second
+      // attempt can't succeed - the cached pattern carries on until the
+      // next pass during opening hours.
+      if (/\bClosed\b\s*·\s*Opens/i.test(bodyText) || /(Temporarily|Permanently) closed/i.test(bodyText)) {
+        console.error(`Popular Times: "${venueName}" is closed right now, so Google isn't showing its chart - keeping the last known pattern.`);
+        return { result: null, retry: false };
+      }
+
       console.error(
         `Popular Times: no data found for "${venueName}" (page never showed the bars after scrolling)\n` +
           `  page title: ${title}\n` +
-          `  body snippet: ${snippet.replace(/\n+/g, " ")}`
+          `  body snippet: ${bodyText.slice(0, 300).replace(/\n+/g, " ")}`
       );
       return { result: null, retry: true };
     }
@@ -375,24 +437,28 @@ async function scrapePopularTimes(venueName: string): Promise<PopularTimesResult
 // since the whole point is a fresh check on every view, not a cached one.
 // Takes the full ~15-20s; fine for one venue on an explicit view, not fine
 // for anything called in bulk.
-export async function refreshPopularTimesNow(venueId: string, venueName: string): Promise<CurrentReading | null> {
+// `scrapedAt` says when the returned reading was actually gathered - now, or
+// the cached reading's original time if this scrape failed - so a fallback
+// is never passed off as a fresh check.
+export async function refreshPopularTimesNow(
+  venueId: string,
+  venueName: string
+): Promise<(CurrentReading & { scrapedAt: number }) | null> {
   const result = await scrapePopularTimes(venueName).catch((err) => {
     console.error(`Popular Times: refresh failed for "${venueName}" - ${errorMessage(err)}`);
     return null;
   });
 
   if (result) {
-    cache.set(venueId, { result, timestamp: Date.now() });
-    saveCache(cache);
-    return currentReading(result);
+    const scrapedAt = Date.now();
+    recordEntry(venueId, { result, timestamp: scrapedAt });
+    return { ...currentReading(result), scrapedAt };
   }
 
   // A failed on-demand check (e.g. Google briefly rate-limiting this one
-  // request) shouldn't erase whatever was already cached - leave the cache
-  // untouched and fall back to serving that instead of "Unavailable" over
-  // one bad attempt.
-  const previous = cache.get(venueId);
-  return previous?.result ? currentReading(previous.result) : null;
+  // request, or the venue being closed) shouldn't erase whatever was already
+  // cached - fall back to serving that instead of "Unavailable".
+  return getLatestPopularTimes(venueId);
 }
 
 // Bulk-list path: only ever reads whatever the scheduler has already cached
@@ -404,6 +470,18 @@ export function getCachedPopularTimes(venueId: string, maxAgeMs: number): Curren
   const cached = cache.get(venueId);
   if (!cached || Date.now() - cached.timestamp >= maxAgeMs) return null;
   return cached.result ? currentReading(cached.result) : null;
+}
+
+// The most recent reading this venue has ever had, however old. Popular
+// Times is a typical-week pattern, so even a weeks-old scrape still says
+// how busy the venue usually is right now - far more useful than showing
+// nothing whenever scraping can't run (Google Maps hides the chart while a
+// venue is closed, so night-time batches always fail). `scrapedAt` lets the
+// app say how old the pattern is instead of passing it off as fresh.
+export function getLatestPopularTimes(venueId: string): (CurrentReading & { scrapedAt: number }) | null {
+  const cached = cache.get(venueId);
+  if (!cached?.result) return null;
+  return { ...currentReading(cached.result), scrapedAt: cached.timestamp };
 }
 
 // Scheduler path: sequentially refreshes a whole list of known venues,
@@ -437,19 +515,17 @@ export async function refreshAllPopularTimes(
     try {
       const result = await scrapePopularTimes(venue.name);
       if (result) {
-        cache.set(venue.id, { result, timestamp: Date.now() });
+        recordEntry(venue.id, { result, timestamp: Date.now() });
         succeeded++;
       } else {
-        if (!cache.has(venue.id)) cache.set(venue.id, { result: null, timestamp: Date.now() });
+        if (!cache.has(venue.id)) recordEntry(venue.id, { result: null, timestamp: Date.now() });
         failed++;
       }
     } catch (err) {
       console.error(`Popular Times: batch refresh failed for "${venue.name}" - ${errorMessage(err)}`);
-      if (!cache.has(venue.id)) cache.set(venue.id, { result: null, timestamp: Date.now() });
+      if (!cache.has(venue.id)) recordEntry(venue.id, { result: null, timestamp: Date.now() });
       failed++;
     }
-
-    saveCache(cache);
 
     const decile = Math.floor(((i + 1) / venues.length) * 10);
     if (decile > lastLoggedDecile) {

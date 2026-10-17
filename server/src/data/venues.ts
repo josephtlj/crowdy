@@ -1,20 +1,12 @@
-import { Venue } from "../types/venue";
+import { CrowdLevel, Venue } from "../types/venue";
 import { STATIONS } from "./stations";
 import { MALLS } from "./malls";
 import { STATION_HOURS } from "./stationHours";
 import { fetchStationCrowdLevels, mapCrowdCode } from "../services/lta";
 import { fetchLtaCarparkRecords } from "../services/carparks";
 import { spreadOverlappingVenues } from "../services/declutter";
-import { getCachedPopularTimes } from "../services/popularTimes";
+import { getLatestPopularTimes } from "../services/popularTimes";
 import { HEATMAP_RADII_M } from "../services/heatmap";
-
-// A bit looser than the scheduler's own daily cadence, as slack for a pass
-// running long or a tick getting delayed - a venue only shows "Unavailable"
-// if even that generous a window has lapsed with no successful batch
-// refresh. Wide because the underlying pattern barely moves day to day and
-// "right now" is always recomputed fresh from it regardless of how old the
-// scrape itself is (see getCachedPopularTimes).
-const POPULAR_TIMES_MAX_AGE_MS = 30 * 60 * 60 * 1000;
 
 // Popular Times is the sole source for every mall in MALLS - no carpark
 // fallback. There used to be one (a carpark-lots estimate for any venue
@@ -22,11 +14,16 @@ const POPULAR_TIMES_MAX_AGE_MS = 30 * 60 * 60 * 1000;
 // duplicate pins: an LTA carpark record whose nearest-neighbour match went
 // to a different, nearby mall was left "unclaimed" and spawned its own
 // separate legacy venue alongside the real one (this is exactly how Marina
-// Square ended up listed twice). Any mall genuinely missing a fresh scrape
-// now shows "Unavailable" instead - honest about there being no reading,
-// rather than quietly reusing carpark-lots as a stand-in. Live LTA lot
-// counts, where a mall has them, are attached only as a bonus stat (Detail
-// screen), never used to derive crowdPercent/crowdLevel.
+// Square ended up listed twice). Live LTA lot counts, where a mall has them,
+// are attached only as a bonus stat (Detail screen), never used to derive
+// crowdPercent/crowdLevel.
+//
+// Every mall uses its most recent Popular Times pattern, however old - it's
+// a typical-week pattern, so it stays a sound estimate long after the scrape
+// that produced it, and scraping can fail for long stretches (Google Maps
+// hides the chart while a venue is closed). `lastUpdated` is the scrape time
+// rather than now, so the app can show how old the pattern is. Only a mall
+// that has never been scraped successfully shows "Unavailable".
 async function getMallVenues(): Promise<Venue[]> {
   const now = new Date().toISOString();
 
@@ -39,7 +36,7 @@ async function getMallVenues(): Promise<Venue[]> {
   }
 
   return MALLS.map((mall) => {
-    const popularTimes = getCachedPopularTimes(mall.id, POPULAR_TIMES_MAX_AGE_MS);
+    const popularTimes = getLatestPopularTimes(mall.id);
     const carparks = mall.carparkDevelopments?.map((dev) => ({
       label: dev,
       availableLots: lotsByDevelopment.get(dev) ?? 0,
@@ -55,7 +52,7 @@ async function getMallVenues(): Promise<Venue[]> {
       crowdPercent: popularTimes?.crowdPercent ?? 0,
       crowdLevel: popularTimes?.crowdLevel ?? "Unavailable",
       source: "GooglePopularTimes",
-      lastUpdated: now,
+      lastUpdated: popularTimes ? new Date(popularTimes.scrapedAt).toISOString() : now,
       carparks,
       hourly: popularTimes?.hourly,
       hours: popularTimes?.hours,
@@ -119,43 +116,59 @@ function isStationOperatingNow(stationId: string, now: Date): boolean | null {
   return false;
 }
 
+// Each station's most recent real LTA reading. LTA's feed fails per line
+// (one line's request can error while the rest succeed) and sometimes
+// entirely, so a station without a reading this round falls back to its
+// last one - with that reading's own time - instead of disappearing. Unlike
+// a mall's typical-week pattern, a live reading stops meaning anything once
+// it's old, so past an hour it's dropped and the station shows "Unavailable".
+const lastLiveReading = new Map<string, { crowdLevel: CrowdLevel; crowdPercent: number; at: string }>();
+const LIVE_READING_MAX_AGE_MS = 60 * 60 * 1000;
+
 async function getTransportVenues(): Promise<Venue[]> {
   const isFresh = Date.now() - cacheTimestamp < CACHE_TTL_MS && cachedTransportVenues.length > 0;
   if (isFresh) return cachedTransportVenues;
 
+  let crowdByStationCode: Awaited<ReturnType<typeof fetchStationCrowdLevels>> = new Map();
   try {
-    const crowdByStationCode = await fetchStationCrowdLevels();
-    const now = new Date();
-    const nowIso = now.toISOString();
-
-    cachedTransportVenues = STATIONS.map((station) => {
-      const record = crowdByStationCode.get(station.code);
-      const mapped = record ? mapCrowdCode(record.CrowdLevel) : null;
-      if (!mapped) return null;
-      // null (no hours data for this station) means "don't override" -
-      // trust whatever LTA's live feed reported.
-      const operating = isStationOperatingNow(station.id, now);
-      const venue: Venue = {
-        id: station.id,
-        name: station.name,
-        category: "Transit",
-        address: station.address,
-        lat: station.lat,
-        lng: station.lng,
-        crowdPercent: operating === false ? 0 : mapped.crowdPercent,
-        crowdLevel: operating === false ? "Closed" : mapped.crowdLevel,
-        source: "LTA",
-        lastUpdated: nowIso,
-        hours: STATION_HOURS[station.id],
-      };
-      return venue;
-    }).filter((v): v is Venue => v !== null);
-    cacheTimestamp = Date.now();
+    crowdByStationCode = await fetchStationCrowdLevels();
   } catch (err) {
-    // Keep serving whatever we last had (even if stale) rather than a
-    // total outage - the rest of the app (malls, hawkers) still works.
-    console.error("LTA fetch failed, serving stale/empty transport data:", err);
+    console.error("LTA fetch failed, using each station's last known reading:", err);
   }
+
+  const now = new Date();
+  const nowIso = now.toISOString();
+
+  // Every station is always listed - its location and train hours are
+  // fixed, so it belongs on the map whether or not LTA answered. Only the
+  // crowd reading depends on the feed: live if there is one, else the last
+  // known one if it's under an hour old, else "Unavailable".
+  cachedTransportVenues = STATIONS.map((station) => {
+    const record = crowdByStationCode.get(station.code);
+    const mapped = record ? mapCrowdCode(record.CrowdLevel) : null;
+    if (mapped) lastLiveReading.set(station.id, { ...mapped, at: nowIso });
+    const stored = lastLiveReading.get(station.id);
+    const reading = stored && now.getTime() - Date.parse(stored.at) <= LIVE_READING_MAX_AGE_MS ? stored : undefined;
+
+    // null (no hours data for this station) means "don't override" -
+    // trust whatever LTA's live feed reported.
+    const operating = isStationOperatingNow(station.id, now);
+    const venue: Venue = {
+      id: station.id,
+      name: station.name,
+      category: "Transit",
+      address: station.address,
+      lat: station.lat,
+      lng: station.lng,
+      crowdPercent: operating === false ? 0 : reading?.crowdPercent ?? 0,
+      crowdLevel: operating === false ? "Closed" : reading?.crowdLevel ?? "Unavailable",
+      source: "LTA",
+      lastUpdated: reading?.at ?? nowIso,
+      hours: STATION_HOURS[station.id],
+    };
+    return venue;
+  });
+  cacheTimestamp = Date.now();
 
   return cachedTransportVenues;
 }

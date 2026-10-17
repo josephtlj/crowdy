@@ -100,6 +100,9 @@ export interface PopularTimesRefresh {
   crowdLevel: Venue["crowdLevel"];
   hourly: { hour: number; percent: number }[];
   hours: { day: number; open: string; close: string }[];
+  // When this reading was actually scraped - not necessarily now, since the
+  // server falls back to its last known reading when a fresh scrape fails.
+  lastUpdated: string;
 }
 
 // Forces a fresh Google Popular Times scrape for one venue - slow (~15-20s,

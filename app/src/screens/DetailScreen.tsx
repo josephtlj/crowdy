@@ -7,6 +7,7 @@ import { getVenueById, getAlternatives, refreshPopularTimesForVenue } from "../s
 import { CrowdBadge } from "../components/CrowdBadge";
 import { PopularTimesChart } from "../components/PopularTimesChart";
 import { VenueHours } from "../components/VenueHours";
+import { formatUpdatedAt } from "../services/updatedAt";
 import { useTheme } from "../theme/ThemeContext";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Detail">;
@@ -42,7 +43,7 @@ export default function DetailScreen({ route, navigation }: Props) {
         if (fresh) {
           setVenue((current) =>
             current && current.id === venueId
-              ? { ...current, ...fresh, lastUpdated: new Date().toISOString() }
+              ? { ...current, ...fresh }
               : current
           );
         }
@@ -95,7 +96,7 @@ export default function DetailScreen({ route, navigation }: Props) {
 
       <View style={styles.updatedRow}>
         <Text style={[styles.updated, { color: colors.textMuted }]}>
-          Updated {new Date(venue.lastUpdated).toLocaleTimeString()} · source: {venue.source}
+          Updated {formatUpdatedAt(venue.lastUpdated)} · source: {venue.source}
         </Text>
         {refreshingCrowd && (
           <>

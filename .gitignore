@@ -8,8 +8,7 @@ build/
 .DS_Store
 server/data/
 
-# Claude Code project config - kept locally for AI-assisted development
-# context, deliberately never committed/pushed (team handover requirement).
+# Local editor/tool config - kept on disk, never committed.
 .claude/
 CLAUDE.md
 AGENTS.md
