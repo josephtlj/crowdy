@@ -3,6 +3,7 @@ import { Alert } from "react-native";
 import * as api from "../services/api";
 import { loadSession, storeSession, clearSession } from "../services/sessionStorage";
 import { loadSavedVenueIds, persistSavedVenueIds } from "../services/savedVenues";
+import { mergeGuestSavesIntoAccount } from "../services/mergeGuestSaves";
 
 interface AuthContextValue {
   // undefined while the stored session is still being read on boot - lets
@@ -47,12 +48,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // multiple accounts) would see venues neither of them actually saved
   // themselves appear in their account.
   //
-  // Now: only prompt when there's actually something to ask about, and
-  // resolve the local guest list one way or the other regardless of the
-  // choice - accepted (merged in) or declined (discarded) - so it can
-  // never be re-offered to a different account later. Blocks completing
-  // login/signup until answered, which is fine here since the caller's
-  // own submit button already shows a spinner for the duration.
+  // "Add to My Saved" clears the phone list only after the server merge succeeds.
+  // "Don't Add" still discards the guest list.
   function promptToMergeLocalSaves(token: string, localIds: string[]): Promise<void> {
     return new Promise((resolve) => {
       Alert.alert(
@@ -70,10 +67,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           {
             text: "Add to My Saved",
             onPress: async () => {
-              await api.mergeFavourites(token, localIds).catch((err) => {
-                console.error("Failed to merge local favourites into account:", err);
-              });
-              await persistSavedVenueIds(new Set());
+              const result = await mergeGuestSavesIntoAccount(
+                token,
+                localIds,
+                api.mergeFavourites,
+                persistSavedVenueIds
+              );
+              if (!result.ok) {
+                console.error("Failed to merge local favourites into account:", result.error);
+                Alert.alert(
+                  "Couldn't add saved venues",
+                  "They're still saved on this device. You'll be asked again the next time you sign in."
+                );
+              }
               resolve();
             },
           },

@@ -7,6 +7,8 @@ export interface Venue {
   name: string;
   category: VenueCategory;
   address: string;
+  // Last 6-digit group in the address, when there is one.
+  postalCode?: string;
   lat: number;
   lng: number;
   crowdPercent: number;
