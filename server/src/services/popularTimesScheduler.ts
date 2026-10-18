@@ -1,88 +1,96 @@
 import { MALLS } from "../data/malls";
-import { getCachedPopularTimes, refreshAllPopularTimes, syncPopularTimesWithDb } from "./popularTimes";
+import { isScrapingEnabled } from "./googleProfile";
+import { scrapeVenue, syncPopularTimesWithDb, venuesDueForScrape } from "./popularTimes";
 
 // A single scrape returns a venue's whole typical week, and "crowd level
-// right now" is recomputed from that pattern on every read - so one
-// successful pass a day is plenty. But it has to run while malls are open:
-// Google Maps hides the Popular Times chart on a closed venue's page
-// (confirmed at 1am on VivoCity - no chart, no heading, nothing to wait
-// for), so a night-time pass fails on every venue and only adds traffic.
+// right now" is recomputed from that pattern on every read - so a mall only
+// needs re-scraping about weekly (PATTERN_MAX_AGE_MS in popularTimes.ts).
 //
-// So the scheduler checks every hour and only scrapes inside SCRAPE_WINDOW,
-// in Singapore time regardless of where the server runs. A backend started
-// at night simply waits for the window; anything already fresh (see
-// FRESH_ENOUGH_MS) is skipped, so the hourly checks cost nothing once the
-// day's pass has run.
+// Scraping runs on one machine only: the backend whose .env has
+// POPULAR_TIMES_SCRAPER=on and whose Google profile is signed in (npm run
+// google-signin). Every other backend just syncs with the shared database.
+//
+// It's paced rather than batched - one due mall at a time, stalest first,
+// with a gap of PAGE_GAP_MS between pages, so all 104 take about two hours
+// rather than a burst of 104 pages in half an hour, the kind of pattern
+// most likely to get the signed-in account challenged. It runs at any hour:
+// signed in, Google shows the chart even after a mall has closed (confirmed
+// on VivoCity at 22:53). Any mall not reached yet keeps serving its last
+// pattern, and a backend restarted partway carries on from the stalest.
 const CHECK_INTERVAL_MS = 60 * 60 * 1000;
-const SCRAPE_WINDOW = { startHour: 11, endHour: 21 };
+const PAGE_GAP_MS = { min: 45 * 1000, jitter: 15 * 1000 };
 
-function isInScrapeWindow(): boolean {
-  const hour = Number(
-    new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Singapore", hour: "2-digit", hour12: false }).format(new Date())
-  );
-  return hour >= SCRAPE_WINDOW.startHour && hour < SCRAPE_WINDOW.endHour;
-}
-
-// Slightly under 24h - the freshness check below uses this to decide which
-// venues actually need re-scraping. Without it, every server restart (e.g.
-// during dev, or the daily setInterval itself) would blindly re-scrape all
-// 100 malls from scratch, even one restarted 5 minutes after the last full
-// pass - a needless ~25-30 minute run every single time `npm run dev` starts.
-const FRESH_ENOUGH_MS = 20 * 60 * 60 * 1000;
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 let running = false;
-// Logged once per stretch outside the window rather than every hourly check.
-let announcedWaiting = false;
+// Logged once per stretch rather than on every hourly check.
+let announcedUpToDate = false;
 
 async function runRefreshPass(): Promise<void> {
   if (running) return;
-
-  if (!isInScrapeWindow()) {
-    if (!announcedWaiting) {
-      console.log(
-        `[popularTimesScheduler] Outside scraping hours (${SCRAPE_WINDOW.startHour}:00-${SCRAPE_WINDOW.endHour}:00 SGT) - ` +
-          "malls are closed and Google hides their Popular Times. Serving the last known patterns until then."
-      );
-      announcedWaiting = true;
-    }
-    return;
-  }
-  announcedWaiting = false;
-
-  // Picks up anything a teammate's backend already scraped first, so this
-  // pass skips those venues instead of scraping them all over again.
-  await syncPopularTimesWithDb();
-
-  const stale = MALLS.filter((m) => !getCachedPopularTimes(m.id, FRESH_ENOUGH_MS));
-  if (stale.length === 0) return;
-
   running = true;
   try {
-    console.log(
-      `[popularTimesScheduler] Starting batch refresh of ${stale.length}/${MALLS.length} venues ` +
-        `(${MALLS.length - stale.length} already fresh, skipped)...`
-    );
-    const { succeeded, failed } = await refreshAllPopularTimes(stale.map((m) => ({ id: m.id, name: m.name })));
-    console.log(`[popularTimesScheduler] Batch refresh done: ${succeeded} succeeded, ${failed} failed.`);
+    // Picks up anything already in the shared database first, so a mall
+    // scraped elsewhere isn't scraped again.
+    await syncPopularTimesWithDb();
+
+    let scraped = 0;
+    for (;;) {
+      const due = venuesDueForScrape(MALLS);
+      if (due.length === 0) {
+        if (!announcedUpToDate) {
+          console.log("[popularTimesScheduler] Every mall's pattern is under a week old - nothing to scrape.");
+          announcedUpToDate = true;
+        }
+        return;
+      }
+      announcedUpToDate = false;
+
+      const mall = due[0];
+      const outcome = await scrapeVenue(mall);
+      scraped++;
+
+      if (outcome === "limitedView") {
+        console.log(
+          "[popularTimesScheduler] Google served the signed-out limited view, so the Google session has likely expired. " +
+            "Stop the backend, run `npm run google-signin`, sign in again, then restart. Trying again next hour."
+        );
+        return;
+      }
+      console.log(
+        `[popularTimesScheduler] ${mall.name}: ${outcome === "updated" ? "updated" : "failed, keeping its last pattern"} ` +
+          `(${scraped} this session, ${due.length - 1} still due).`
+      );
+
+      await sleep(PAGE_GAP_MS.min + Math.random() * PAGE_GAP_MS.jitter);
+    }
   } catch (err) {
-    console.error("[popularTimesScheduler] Batch refresh pass threw:", err);
+    console.error("[popularTimesScheduler] Refresh pass threw:", err);
   } finally {
     running = false;
   }
 }
 
-// Keeps venue readings current with what teammates scrape while this server
-// is running, not only at startup. A full pull is about a megabyte, so every
-// 15 minutes is cheap.
+// Keeps venue readings current with what the scraping backend uploads while
+// this server is running, not only at startup. A full pull is about a
+// megabyte, so every 15 minutes is cheap.
 const DB_SYNC_INTERVAL_MS = 15 * 60 * 1000;
 
 export function startPopularTimesScheduler(): void {
   void syncPopularTimesWithDb();
   setInterval(() => void syncPopularTimesWithDb(), DB_SYNC_INTERVAL_MS);
 
+  if (!isScrapingEnabled()) {
+    console.log(
+      "[popularTimesScheduler] Scraping is off on this backend (POPULAR_TIMES_SCRAPER isn't \"on\") - " +
+        "using the shared Popular Times data."
+    );
+    return;
+  }
+
   // First check shortly after boot (letting the server finish starting up),
   // then hourly.
   setTimeout(runRefreshPass, 10_000);
   setInterval(runRefreshPass, CHECK_INTERVAL_MS);
-  console.log("[popularTimesScheduler] Scheduler started - refreshing once daily, during mall hours.");
+  console.log("[popularTimesScheduler] Scheduler started - refreshing malls older than a week, one at a time.");
 }

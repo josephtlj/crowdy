@@ -5,6 +5,7 @@ import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import type { Browser } from "puppeteer";
 import { CrowdLevel } from "../types/venue";
 import { loadStoredEntries, storeEntry, StoredEntry } from "./popularTimesStore";
+import { chromePath, googleProfileDir, isScrapingEnabled } from "./googleProfile";
 
 puppeteerExtra.use(StealthPlugin());
 
@@ -54,15 +55,19 @@ interface CacheEntry {
 // actually mattered: warming up on the homepage first instead of landing
 // cold on a deep link, real synthesized mouse/wheel events instead of
 // script-triggered scrolling, and the stealth plugin masking the most
-// obvious automation tells. This is inherently fragile - Google can change
-// their page at any time with no notice - so every failure mode here
-// degrades to `null` rather than throwing.
+// obvious automation tells. Since some time between 18 Sep and 17 Oct 2026
+// (the last successful logged-out scrape and the first failed one) it also has to be
+// signed in to a Google account - signed-out visitors get a "limited view"
+// without Popular Times (see googleProfile.ts). Both are needed: a test on
+// the signed-in profile without the stealth plugin still got the limited
+// view. This is inherently fragile - Google can change their page at any
+// time with no notice - so every failure mode here degrades to `null`
+// rather than throwing.
 //
 // A single scrape captures the whole week (see scrapePopularTimes below),
 // so there's no need to re-scrape often: the pattern itself barely moves,
 // and "right now" is always recomputed fresh from whichever day's cached
 // pattern matches the actual current day of week (see currentReading).
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 // Persisted to disk (same pattern as carpark-history.json) so a server
 // restart doesn't wipe every venue back to "never checked" - without this,
@@ -156,12 +161,34 @@ export async function syncPopularTimesWithDb(): Promise<void> {
 // every request failed with ConnectionClosedError after this process sat
 // through ~18 hours including sleep/wake). Re-checking `.connected` and
 // relaunching on demand fixes that without needing a server restart.
-let browserPromise: Promise<Browser> | null = null;
-// Exported so heatmapImage.ts can render its canvas in this same shared
-// Chromium instead of launching a second one just for that.
-export async function getBrowser(): Promise<Browser> {
-  if (browserPromise) {
-    const existing = await browserPromise;
+interface BrowserSlot {
+  promise: Promise<Browser> | null;
+  launch: () => Promise<Browser>;
+}
+
+// The plain bundled Chromium, used by heatmapImage.ts to render its canvas.
+const plainBrowser: BrowserSlot = {
+  promise: null,
+  launch: () => puppeteerExtra.launch({ headless: true }) as Promise<Browser>,
+};
+
+// Real Chrome on the signed-in profile (see googleProfile.ts), used only for
+// Google Maps. Puppeteer's defaults swap in a fake macOS keychain, which
+// can't decrypt the profile's saved session, so those two flags are dropped.
+const mapsBrowser: BrowserSlot = {
+  promise: null,
+  launch: () =>
+    puppeteerExtra.launch({
+      headless: true,
+      executablePath: chromePath(),
+      userDataDir: googleProfileDir(),
+      ignoreDefaultArgs: ["--use-mock-keychain", "--password-store=basic"],
+    }) as Promise<Browser>,
+};
+
+async function getFromSlot(slot: BrowserSlot): Promise<Browser> {
+  if (slot.promise) {
+    const existing = await slot.promise;
     if (existing.connected) return existing;
     console.error("[popularTimes] Cached browser disconnected (likely a sleep/wake drop) - relaunching.");
     // The CDP connection dropping doesn't mean the underlying Chrome
@@ -171,10 +198,26 @@ export async function getBrowser(): Promise<Browser> {
     // There's no live connection to close it through cleanly, so kill the
     // OS process directly.
     existing.process()?.kill();
-    browserPromise = null;
+    slot.promise = null;
   }
-  browserPromise = puppeteerExtra.launch({ headless: true }) as Promise<Browser>;
-  return browserPromise;
+  const launching = slot.launch();
+  slot.promise = launching;
+  // A failed launch (e.g. the profile open in another Chrome window) is
+  // retried on the next call instead of being cached forever.
+  launching.catch(() => {
+    if (slot.promise === launching) slot.promise = null;
+  });
+  return launching;
+}
+
+// Exported so heatmapImage.ts can render its canvas in a shared Chromium
+// instead of launching a new one per render.
+export function getBrowser(): Promise<Browser> {
+  return getFromSlot(plainBrowser);
+}
+
+function getMapsBrowser(): Promise<Browser> {
+  return getFromSlot(mapsBrowser);
 }
 
 // For graceful shutdown (see index.ts) - without this, Ctrl+C leaves the
@@ -182,10 +225,14 @@ export async function getBrowser(): Promise<Browser> {
 // running past the Node process itself, which is part of why the server
 // sometimes doesn't fully let go of its port right away.
 export async function closeBrowser(): Promise<void> {
-  if (!browserPromise) return;
-  const existing = await browserPromise.catch(() => null);
-  browserPromise = null;
-  await existing?.close().catch(() => existing.process()?.kill());
+  await Promise.all(
+    [plainBrowser, mapsBrowser].map(async (slot) => {
+      if (!slot.promise) return;
+      const existing = await slot.promise.catch(() => null);
+      slot.promise = null;
+      await existing?.close().catch(() => existing.process()?.kill());
+    })
+  );
 }
 
 function mapCrowdLevel(percent: number): CrowdLevel {
@@ -244,16 +291,19 @@ interface ScrapeAttempt {
   // nothing parsed) aren't retried - retrying those wouldn't address
   // whatever actually went wrong.
   retry: boolean;
+  // Google served its signed-out "limited view" of Maps, which leaves out
+  // Popular Times. It applies to every page, not just this venue, so the
+  // batch stops instead of loading the rest for nothing.
+  limitedView?: boolean;
 }
 
 async function scrapePopularTimesAttempt(venueName: string): Promise<ScrapeAttempt> {
-  const browser = await getBrowser();
+  const browser = await getMapsBrowser();
   const page = await browser.newPage();
   try {
+    // No user-agent override - real Chrome already sends its own, and a
+    // made-up version wouldn't match the signed-in session's browser.
     await page.setViewport({ width: 1280, height: 1600 });
-    await page.setUserAgent(
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    );
     await page.setExtraHTTPHeaders({ "Accept-Language": "en-SG,en;q=0.9" });
 
     await page.goto("https://www.google.com/", { waitUntil: "networkidle2", timeout: 30000 }).catch(() => {});
@@ -314,11 +364,22 @@ async function scrapePopularTimesAttempt(venueName: string): Promise<ScrapeAttem
       const title = await page.title().catch(() => "(no title)");
       const bodyText = await page.evaluate(() => document.body?.innerText ?? "").catch(() => "");
 
-      // Google Maps hides the chart while a venue is closed, so a second
-      // attempt can't succeed - the cached pattern carries on until the
-      // next pass during opening hours.
+      // Signed-out visitors can get a "limited view" of Maps with no
+      // Popular Times at all - confirmed on an open mall (313@somerset,
+      // Sunday 4pm) from two different networks and with a visible browser,
+      // so it isn't a slow load or this IP. A retry gets the same page.
+      if (/limited view of Google Maps/i.test(bodyText)) {
+        console.error(
+          `Popular Times: Google served a limited (signed-out) view of Maps for "${venueName}" ` +
+            "without Popular Times - keeping the last known pattern."
+        );
+        return { result: null, retry: false, limitedView: true };
+      }
+
+      // A closed venue's page without the chart - a retry gets the same
+      // page, so the cached pattern carries on.
       if (/\bClosed\b\s*·\s*Opens/i.test(bodyText) || /(Temporarily|Permanently) closed/i.test(bodyText)) {
-        console.error(`Popular Times: "${venueName}" is closed right now, so Google isn't showing its chart - keeping the last known pattern.`);
+        console.error(`Popular Times: "${venueName}" shows as closed and its page has no chart - keeping the last known pattern.`);
         return { result: null, retry: false };
       }
 
@@ -423,31 +484,40 @@ async function scrapePopularTimesAttempt(venueName: string): Promise<ScrapeAttem
 // scroll-timeout case identified above - recovers most of those without
 // masking a genuine "no Popular Times for this venue" result, since that
 // case is marked non-retryable at the source.
-async function scrapePopularTimes(venueName: string): Promise<PopularTimesResult | null> {
+async function scrapePopularTimes(venueName: string): Promise<ScrapeAttempt> {
   const first = await scrapePopularTimesAttempt(venueName);
-  if (!first.retry) return first.result;
+  if (!first.retry) return first;
   console.error(`Popular Times: retrying "${venueName}" once after a scroll timeout...`);
-  const second = await scrapePopularTimesAttempt(venueName);
-  return second.result;
+  return scrapePopularTimesAttempt(venueName);
 }
 
+// How old a venue's pattern can get before it's scraped again. A typical
+// week barely changes from one week to the next, so weekly is plenty - and
+// every page load counts against the signed-in account.
+export const PATTERN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
 // On-demand path: triggered automatically whenever a venue's Detail screen
-// opens, so what's shown is confirmed current rather than trusting
-// whatever's cached. Always scrapes - deliberately ignores CACHE_TTL_MS -
-// since the whole point is a fresh check on every view, not a cached one.
-// Takes the full ~15-20s; fine for one venue on an explicit view, not fine
-// for anything called in bulk.
+// opens. Only scrapes on the scraping backend, and only when the venue's
+// pattern is due anyway - otherwise browsing the app would add page loads
+// on the signed-in account for patterns that are still current. A scrape
+// takes ~15-20s; fine for one venue on an explicit view, not for bulk.
 // `scrapedAt` says when the returned reading was actually gathered - now, or
-// the cached reading's original time if this scrape failed - so a fallback
-// is never passed off as a fresh check.
+// the cached reading's original time if no scrape ran or it failed - so a
+// fallback is never passed off as a fresh check.
 export async function refreshPopularTimesNow(
   venueId: string,
   venueName: string
 ): Promise<(CurrentReading & { scrapedAt: number }) | null> {
-  const result = await scrapePopularTimes(venueName).catch((err) => {
-    console.error(`Popular Times: refresh failed for "${venueName}" - ${errorMessage(err)}`);
-    return null;
-  });
+  const latest = getLatestPopularTimes(venueId);
+  if (!isScrapingEnabled() || (latest && Date.now() - latest.scrapedAt < PATTERN_MAX_AGE_MS)) return latest;
+
+  const result = await scrapePopularTimes(venueName).then(
+    (attempt) => attempt.result,
+    (err) => {
+      console.error(`Popular Times: refresh failed for "${venueName}" - ${errorMessage(err)}`);
+      return null;
+    }
+  );
 
   if (result) {
     const scrapedAt = Date.now();
@@ -455,28 +525,17 @@ export async function refreshPopularTimesNow(
     return { ...currentReading(result), scrapedAt };
   }
 
-  // A failed on-demand check (e.g. Google briefly rate-limiting this one
-  // request, or the venue being closed) shouldn't erase whatever was already
+  // A failed on-demand check (e.g. Google rate-limiting this request, or
+  // serving its limited view without the chart) shouldn't erase what was already
   // cached - fall back to serving that instead of "Unavailable".
-  return getLatestPopularTimes(venueId);
-}
-
-// Bulk-list path: only ever reads whatever the scheduler has already cached
-// - never triggers a scrape itself, so a bulk /venues request stays fast
-// regardless of cache state. `maxAgeMs` is intentionally separate from (and
-// looser than) CACHE_TTL_MS, since this is read far more often than the
-// scheduler refreshes.
-export function getCachedPopularTimes(venueId: string, maxAgeMs: number): CurrentReading | null {
-  const cached = cache.get(venueId);
-  if (!cached || Date.now() - cached.timestamp >= maxAgeMs) return null;
-  return cached.result ? currentReading(cached.result) : null;
+  return latest;
 }
 
 // The most recent reading this venue has ever had, however old. Popular
 // Times is a typical-week pattern, so even a weeks-old scrape still says
 // how busy the venue usually is right now - far more useful than showing
-// nothing whenever scraping can't run (Google Maps hides the chart while a
-// venue is closed, so night-time batches always fail). `scrapedAt` lets the
+// nothing whenever scraping can't run (e.g. Google serving signed-out
+// visitors a limited view of Maps without the chart). `scrapedAt` lets the
 // app say how old the pattern is instead of passing it off as fresh.
 export function getLatestPopularTimes(venueId: string): (CurrentReading & { scrapedAt: number }) | null {
   const cached = cache.get(venueId);
@@ -484,58 +543,52 @@ export function getLatestPopularTimes(venueId: string): (CurrentReading & { scra
   return { ...currentReading(cached.result), scrapedAt: cached.timestamp };
 }
 
-// Scheduler path: sequentially refreshes a whole list of known venues,
-// reusing the same shared browser instance a page at a time. Logs and moves
-// on per-venue failure rather than aborting the whole batch over one bad
-// name (e.g. an ambiguous name resolving to the wrong page).
+export type ScrapeOutcome = "updated" | "failed" | "limitedView";
+
+// When each venue was last tried in this run, successful or not - so a venue
+// that keeps failing isn't picked again straight away just because its
+// cached pattern is still the oldest.
+const lastAttemptAt = new Map<string, number>();
+
+function lastTouched(venueId: string): number {
+  return Math.max(cache.get(venueId)?.timestamp ?? 0, lastAttemptAt.get(venueId) ?? 0);
+}
+
+// Venues whose pattern is at least PATTERN_MAX_AGE_MS old (or never
+// scraped), stalest first.
+export function venuesDueForScrape<T extends { id: string }>(venues: T[]): T[] {
+  const now = Date.now();
+  return venues
+    .filter((v) => now - lastTouched(v.id) >= PATTERN_MAX_AGE_MS)
+    .sort((a, b) => lastTouched(a.id) - lastTouched(b.id));
+}
+
+// Scheduler path: scrapes one venue and records the result. The scheduler
+// paces these calls - see popularTimesScheduler.ts.
 //
-// Saves to disk after every venue, not just once at the end - a batch over
-// 100+ venues takes 15-30 minutes, and only saving at the end meant a crash
-// partway through lost all of it, and a completely separate process
-// starting up mid-batch (e.g. a dev server booted while this was still
-// running) would read the cache file as if nothing had been scraped yet,
-// triggering its own redundant full re-scrape in parallel with this one -
-// confirmed happening exactly that way, not just a theoretical risk.
-export async function refreshAllPopularTimes(
-  venues: { id: string; name: string }[]
-): Promise<{ succeeded: number; failed: number }> {
-  let succeeded = 0;
-  let failed = 0;
-  let lastLoggedDecile = 0;
-
-  for (let i = 0; i < venues.length; i++) {
-    const venue = venues[i];
-    // A failed attempt (scrapePopularTimes returning null, or throwing)
-    // shouldn't erase an already-cached good result - previously it did,
-    // which meant one bad batch run (Google rate-limiting, a page layout
-    // hiccup) wiped every venue it touched to "Unavailable" even though
-    // yesterday's still-fresh data was sitting right there. Only a venue
-    // with no prior cache entry at all gets a null one recorded, so it at
-    // least resolves to "no data yet" instead of nothing.
-    try {
-      const result = await scrapePopularTimes(venue.name);
-      if (result) {
-        recordEntry(venue.id, { result, timestamp: Date.now() });
-        succeeded++;
-      } else {
-        if (!cache.has(venue.id)) recordEntry(venue.id, { result: null, timestamp: Date.now() });
-        failed++;
-      }
-    } catch (err) {
-      console.error(`Popular Times: batch refresh failed for "${venue.name}" - ${errorMessage(err)}`);
-      if (!cache.has(venue.id)) recordEntry(venue.id, { result: null, timestamp: Date.now() });
-      failed++;
+// A failed attempt (null, or throwing) never erases an already-cached good
+// result - one bad run (Google rate-limiting, a page layout hiccup) used to
+// wipe every venue it touched to "Unavailable" even though a good pattern
+// was sitting right there. Only a venue with no prior cache entry at all
+// gets a null one recorded, so it at least resolves to "no data yet".
+export async function scrapeVenue(venue: { id: string; name: string }): Promise<ScrapeOutcome> {
+  lastAttemptAt.set(venue.id, Date.now());
+  try {
+    const { result, limitedView } = await scrapePopularTimes(venue.name);
+    if (limitedView) return "limitedView";
+    if (result) {
+      recordEntry(venue.id, { result, timestamp: Date.now() });
+      return "updated";
     }
-
-    const decile = Math.floor(((i + 1) / venues.length) * 10);
-    if (decile > lastLoggedDecile) {
-      lastLoggedDecile = decile;
-      console.log(
-        `[popularTimes] Batch refresh progress: ${i + 1}/${venues.length} (${decile * 10}%) - ` +
-          `${succeeded} succeeded, ${failed} failed so far.`
+  } catch (err) {
+    const message = errorMessage(err);
+    console.error(`Popular Times: scrape failed for "${venue.name}" - ${message}`);
+    if (/already running/i.test(message)) {
+      console.error(
+        "Popular Times: the Google profile is open in another Chrome window - quit that window so the scraper can use it."
       );
     }
   }
-
-  return { succeeded, failed };
+  if (!cache.has(venue.id)) recordEntry(venue.id, { result: null, timestamp: Date.now() });
+  return "failed";
 }

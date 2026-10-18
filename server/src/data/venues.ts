@@ -20,8 +20,8 @@ import { HEATMAP_RADII_M } from "../services/heatmap";
 //
 // Every mall uses its most recent Popular Times pattern, however old - it's
 // a typical-week pattern, so it stays a sound estimate long after the scrape
-// that produced it, and scraping can fail for long stretches (Google Maps
-// hides the chart while a venue is closed). `lastUpdated` is the scrape time
+// that produced it, and scraping can fail for long stretches (e.g. Google
+// serving a limited view of Maps without the chart). `lastUpdated` is the scrape time
 // rather than now, so the app can show how old the pattern is. Only a mall
 // that has never been scraped successfully shows "Unavailable".
 async function getMallVenues(): Promise<Venue[]> {
