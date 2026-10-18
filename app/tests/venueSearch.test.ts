@@ -27,3 +27,22 @@ test("address words match after expanding rd to road", () => {
   assert.equal(venueSearchRank(centrepoint, "orchard rd"), 4);
   assert.equal(venueSearchRank(ion, "orchard road"), null);
 });
+
+test("a single letter does not match the word singapore in an address", () => {
+  assert.equal(venueSearchRank(ion, "s"), null);
+});
+
+test("a one-digit postal typo is not a match", () => {
+  const palais = {
+    name: "Palais Renaissance",
+    address: "390 ORCHARD ROAD PALAIS RENAISSANCE SINGAPORE 238871",
+    postalCode: "238871",
+  };
+  assert.equal(venueSearchRank(palais, "238801"), null);
+  assert.equal(venueSearchRank({ name: "Jewel Changi Airport", address: "78 AIRPORT BOULEVARD", postalCode: undefined }, "jewl"), 5);
+});
+
+test("joined name matching only hits the start of the name", () => {
+  assert.equal(venueSearchRank({ name: "Vivo City", address: "1 EXAMPLE ROAD", postalCode: undefined }, "vivocity"), 2);
+  assert.equal(venueSearchRank({ name: "Sam Kee LRT", address: "Sam Kee LRT Station", postalCode: undefined }, "amk"), null);
+});

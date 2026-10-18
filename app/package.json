@@ -31,7 +31,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "test": "node --experimental-strip-types --import ../test-register.mjs --test --test-concurrency=1 tests/*.test.ts"
+    "test": "node --experimental-strip-types --import ./tests/test-register.mjs --test --test-concurrency=1 tests/*.test.ts"
   },
   "private": true
 }

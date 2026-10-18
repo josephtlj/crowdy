@@ -1,6 +1,6 @@
 import type { Venue } from "../types/venue";
 
-// Written-out forms so "rd" / "st" in a query hit the address text OneMap stored.
+// "rd" matches addresses stored as "road".
 const ABBREVIATIONS: Record<string, string> = {
   rd: "road",
   st: "street",
@@ -24,8 +24,19 @@ function normalize(raw: string): string {
     .join(" ");
 }
 
-// One insertion, deletion, or substitution. Adjacent transpositions ("orhcard")
-// cost 2 and do not count. Bails out once the row can no longer stay within 1.
+// "SINGAPORE" is on almost every mall address, so a query of "s" would match all of them.
+function addressForMatch(address: string): string {
+  return address
+    .split(" ")
+    .filter((token) => token !== "singapore")
+    .join(" ");
+}
+
+function isNumeric(token: string): boolean {
+  return /^\d+$/.test(token);
+}
+
+// One insertion, deletion, or substitution. Used for words only, not postal codes.
 function editDistanceAtMostOne(a: string, b: string): boolean {
   if (a === b) return true;
   if (Math.abs(a.length - b.length) > 1) return false;
@@ -51,16 +62,22 @@ function tokenHits(queryToken: string, haystack: string, haystackTokens: string[
   let fuzzy = false;
   for (const token of haystackTokens) {
     if (token.startsWith(queryToken)) return "prefix";
-    if (queryToken.length >= 4 && token.length >= 4 && editDistanceAtMostOne(queryToken, token)) {
+    if (
+      !isNumeric(queryToken) &&
+      !isNumeric(token) &&
+      queryToken.length >= 4 &&
+      token.length >= 4 &&
+      editDistanceAtMostOne(queryToken, token)
+    ) {
       fuzzy = true;
     }
   }
   return fuzzy ? "fuzzy" : null;
 }
 
-// Lower rank is a stronger hit. null means the venue does not match.
+// Lower rank is a stronger hit. null means no match.
 // 0 exact postal code, 1 postal prefix, 2 name prefix, 3 name tokens,
-// 4 address tokens, 5 a one-character typo in a token of length 4+.
+// 4 address tokens, 5 a one-character typo in a word.
 export function venueSearchRank(venue: Pick<Venue, "name" | "address" | "postalCode">, rawQuery: string): number | null {
   const query = rawQuery.trim().toLowerCase();
   if (!query) return null;
@@ -72,10 +89,12 @@ export function venueSearchRank(venue: Pick<Venue, "name" | "address" | "postalC
 
   const normalizedQuery = normalize(query);
   const name = normalize(venue.name);
-  const address = normalize(venue.address);
+  const address = addressForMatch(normalize(venue.address));
   const queryCompact = normalizedQuery.replace(/ /g, "");
   const nameCompact = name.replace(/ /g, "");
 
+  // Joined names only match at the start, so "vivocity" hits "Vivo City"
+  // but "amk" does not hit "Sam Kee LRT" ("samkeelrt").
   if (name.startsWith(normalizedQuery) || (queryCompact.length >= 2 && nameCompact.startsWith(queryCompact))) {
     return 2;
   }
@@ -87,7 +106,7 @@ export function venueSearchRank(venue: Pick<Venue, "name" | "address" | "postalC
   let usedFuzzy = false;
 
   for (const token of queryTokens) {
-    const nameHit = tokenHits(token, nameCompact.includes(token) ? name + " " + token : name, nameTokens);
+    const nameHit = tokenHits(token, name, nameTokens);
     if (nameHit === "exact" || nameHit === "prefix") continue;
     if (nameHit === "fuzzy") {
       usedFuzzy = true;
