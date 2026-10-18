@@ -26,7 +26,7 @@ flowchart LR
     DB[("MySQL\naccounts, favourites,\nshared Popular Times cache")]
 
     LTA -- "live, real-time" --> BE
-    GPT -- "daily + on-demand" --> BE
+    GPT -- "weekly per mall, paced" --> BE
     SG -. "one-off, compiled\nto static data" .-> BE
     OM -. "build-time only" .-> BE
     BE <-- "REST API" --> APP
@@ -60,7 +60,7 @@ flowchart LR
 2. **Middleware for cross-cutting concerns** — `requireAuth` verifies the bearer token once and attaches the account id (via `res.locals`, not a global type augmentation) before any protected route body runs; `cors()` and `express.json()` are applied globally.
 3. **Stateless authentication** — JWT bearer tokens (30-day expiry), not server-side sessions. Every request carries everything needed to authenticate it, so the backend holds no per-user connection state.
 4. **Service-layer separation** — each external concern (LTA, carpark lots, Google Popular Times, the heatmap image, alternatives, distance math, auth, the DB pool) lives in its own file under `services/`. Simple resource CRUD (accounts, favourites) queries the database directly from its route; anything that talks to an external source or does real computation goes through a dedicated service instead.
-5. **Cache-with-TTL, repeated deliberately** — Popular Times, LTA carpark lots, and the rendered heatmap image are each cached with their own freshness window, matched to how often that specific source actually changes (5 minutes for LTA, ~daily for Popular Times) rather than one blanket policy.
+5. **Cache-with-TTL, repeated deliberately** — Popular Times, LTA carpark lots, and the rendered heatmap image are each cached with their own freshness window, matched to how often that specific source actually changes (5 minutes for LTA, a week for Popular Times) rather than one blanket policy.
 6. **Consistent error shape** — failures return `{ error: "..." }` with a standard HTTP status (400/401/404/409/500); the same generic message is used for both "wrong password" and "no such account" on login, so a failed attempt can't be used to enumerate registered usernames.
 7. **Graceful shutdown** — `SIGINT`/`SIGTERM` close the HTTP server, the shared Puppeteer browser, and the DB pool, each bounded by its own timeout so one stuck step can't block the others or the process exit itself.
 
@@ -102,8 +102,15 @@ Routes depend on service-layer functions (`getVenues()`, `refreshPopularTimesNow
    DB_PASSWORD=<db password>
    DB_SSL_CA_PATH=./certs/aiven-ca.pem   # required for the hosted (Aiven) database; omit for a local MySQL install
    JWT_SECRET=<any random string>
+   ONEMAP_EMAIL=<OneMap account email>      # for in-app directions
+   ONEMAP_PASSWORD=<OneMap account password>
    ```
 3. `npm run dev` — starts the backend at `http://localhost:4000`
+
+Only one machine scrapes Google Popular Times; every other backend reads the shared copy from the database, so teammates need nothing extra. On the scraping machine:
+1. Add `POPULAR_TIMES_SCRAPER=on` to `server/.env`.
+2. With the backend stopped, run `npm run google-signin`, sign in to the project's Google account in the Chrome window that opens (keep the account in that profile when asked), then quit that window.
+3. Start the backend. The session is stored in `~/.crowdy/google-profile/`, outside the repo — never commit or share it. If the log says the session has expired, repeat step 2.
 
 ### App Setup
 1. `cd app && npm install`
@@ -120,7 +127,7 @@ Routes depend on service-layer functions (`getVenues()`, `refreshPopularTimesNow
 - `GET /venues?lat=&lng=` — every tracked venue, sorted nearest-first if coordinates are given
 - `GET /venues/:id` — single venue detail
 - `GET /venues/:id/alternatives` — lower-crowd venues of the same category within 3km
-- `GET /venues/:id/popular-times` — forces a fresh Popular Times scrape for one venue (~15-20s)
+- `GET /venues/:id/popular-times` — the venue's Popular Times reading, scraping it first (~15-20s) if its pattern is over a week old and this backend scrapes
 
 ### Lines — `/lines`
 - `GET /lines` — static MRT/LRT rail alignment geometry
@@ -141,7 +148,7 @@ Routes depend on service-layer functions (`getVenues()`, `refreshPopularTimesNow
 Official real-time MRT/LRT platform crowd density, and live carpark lot counts (shown as a bonus stat, not used to derive crowd level).
 
 ### Google Popular Times
-No official API exists for this, so the backend drives a real headless browser through the same flow a person browsing Google Maps would — daily for the full venue list, plus on-demand whenever a specific venue's page is opened in the app.
+No official API exists for this, so the backend drives a headless Chrome through the same flow a person browsing Google Maps would. Google only shows Popular Times to signed-in visitors, so it runs on a Chrome profile signed in to the project's Google account, on one machine only. It refreshes any mall whose pattern is over a week old, one mall about every minute, so all 104 take about two hours — a pattern is a typical week, so weekly is plenty, and the steady pace avoids bursts of traffic on the account. Opening a mall in the app also refreshes it if its pattern is due.
 
 ### OneMap
 Free government geocoding, used once at build time (`server/scripts/build-mall-list.ts`) to resolve mall coordinates — not called at runtime.
@@ -149,7 +156,7 @@ Free government geocoding, used once at build time (`server/scripts/build-mall-l
 ### Aiven
 Hosts the MySQL database (free tier) for:
 - `accounts` and `favourites`
-- `popular_times_cache` — a shared copy of the Popular Times cache, so the whole team's backends work from one set of scraped data instead of each scraping every venue separately. Each backend syncs with it on startup, every 15 minutes, and before its daily batch, and still keeps its own local copy, so the app keeps working from that copy if the database is unreachable. The table is created automatically on first run.
+- `popular_times_cache` — a shared copy of the Popular Times cache, so the whole team's backends work from one set of scraped data instead of each scraping every venue separately. Each backend syncs with it on startup, every 15 minutes, and before each scraping session, and still keeps its own local copy, so the app keeps working from that copy if the database is unreachable. The table is created automatically on first run.
 
 Everything else lives in the backend's own cache files.
 

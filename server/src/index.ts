@@ -73,8 +73,8 @@ async function shutdown(signal: string): Promise<void> {
   console.log(`\nReceived ${signal}, shutting down...`);
 
   // A hard stop, not a "wait for it to finish" - whatever the scrape was
-  // mid-doing is simply abandoned; getCachedPopularTimes has always
-  // tolerated a venue with no fresh entry, so nothing here needs its result.
+  // mid-doing is simply abandoned; that venue keeps its last pattern and is
+  // still due next time, so nothing here needs its result.
   await Promise.allSettled([
     withTimeout(new Promise<void>((resolve) => server.close(() => resolve())), 3000),
     withTimeout(closeBrowser(), 3000),
