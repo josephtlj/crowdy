@@ -67,7 +67,7 @@ function Navigation() {
         <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Detail" component={DetailScreen} options={{ title: t("screen.venue") }} />
         {/* Title is replaced with the destination's name once it loads. */}
-        <Stack.Screen name="Directions" component={DirectionsScreen} options={{ title: "Directions" }} />
+        <Stack.Screen name="Directions" component={DirectionsScreen} options={{ title: t("screen.directions") }} />
         <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: t("screen.settings") }} />
       </Stack.Navigator>
     </NavigationContainer>

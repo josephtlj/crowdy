@@ -77,10 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               );
               if (!result.ok) {
                 console.error("Failed to merge local favourites into account:", result.error);
-                Alert.alert(
-                  "Couldn't add saved venues",
-                  "They're still saved on this device. You'll be asked again the next time you sign in."
-                );
+                Alert.alert(t("auth.mergeFailedTitle"), t("auth.mergeFailedBody"));
               }
               resolve();
             },

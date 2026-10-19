@@ -13,8 +13,12 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { Route, RouteStep, StepMode, TravelMode } from "../types/directions";
 import { CrowdLevel } from "../types/venue";
-import { CROWD_COLORS } from "./CrowdBadge";
+import { CROWD_COLORS, crowdKey } from "./CrowdBadge";
 import { useTheme } from "../theme/ThemeContext";
+import { useLanguage } from "../i18n/LanguageContext";
+import { StringKey } from "../i18n/strings";
+
+type Translate = (key: StringKey, vars?: Record<string, string | number>) => string;
 
 interface Props {
   mode: TravelMode;
@@ -27,11 +31,11 @@ interface Props {
   destinationCrowd: CrowdLevel;
 }
 
-const MODE_TABS: { mode: TravelMode; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { mode: "transit", label: "Transit", icon: "train-outline" },
-  { mode: "walk", label: "Walk", icon: "walk-outline" },
-  { mode: "drive", label: "Drive", icon: "car-outline" },
-  { mode: "cycle", label: "Cycle", icon: "bicycle-outline" },
+const MODE_TABS: { mode: TravelMode; label: StringKey; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { mode: "transit", label: "directions.transit", icon: "train-outline" },
+  { mode: "walk", label: "directions.walk", icon: "walk-outline" },
+  { mode: "drive", label: "directions.drive", icon: "car-outline" },
+  { mode: "cycle", label: "directions.cycle", icon: "bicycle-outline" },
 ];
 
 const STEP_ICONS: Record<StepMode, keyof typeof Ionicons.glyphMap> = {
@@ -68,6 +72,7 @@ export function DirectionsSheet({
   destinationCrowd,
 }: Props) {
   const { colors } = useTheme();
+  const { t } = useLanguage();
   const { height: screenHeight } = useWindowDimensions();
 
   const collapsedHeight = screenHeight * COLLAPSED_FRACTION;
@@ -135,12 +140,12 @@ export function DirectionsSheet({
           itinerary - the crowd level is the reason to open Crowdy at all,
           and it shouldn't disappear the moment you ask how to get there. */}
       <View style={styles.destination}>
-        <Text style={[styles.destinationLabel, { color: colors.textMuted }]}>To</Text>
+        <Text style={[styles.destinationLabel, { color: colors.textMuted }]}>{t("directions.to")}</Text>
         <Text style={[styles.destinationName, { color: colors.text }]} numberOfLines={1}>
           {destinationName}
         </Text>
         <View style={[styles.destinationCrowd, { backgroundColor: CROWD_COLORS[destinationCrowd] }]}>
-          <Text style={styles.destinationCrowdText}>{destinationCrowd}</Text>
+          <Text style={styles.destinationCrowdText}>{t(crowdKey(destinationCrowd))}</Text>
         </View>
       </View>
 
@@ -164,7 +169,7 @@ export function DirectionsSheet({
               <Text
                 style={[styles.tabLabel, { color: active ? "#FFFFFF" : colors.textMuted }]}
               >
-                {tab.label}
+                {t(tab.label)}
               </Text>
             </TouchableOpacity>
           );
@@ -209,11 +214,12 @@ function SheetBody({
   accentColor,
   surfaceAltColor,
 }: BodyProps) {
+  const { t } = useLanguage();
   if (loading) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator />
-        <Text style={[styles.statusText, { color: mutedColor }]}>Finding the best route…</Text>
+        <Text style={[styles.statusText, { color: mutedColor }]}>{t("directions.finding")}</Text>
       </View>
     );
   }
@@ -224,7 +230,7 @@ function SheetBody({
         <Ionicons name="cloud-offline-outline" size={26} color={mutedColor} />
         <Text style={[styles.statusText, { color: mutedColor }]}>{error}</Text>
         <TouchableOpacity onPress={onRetry} style={[styles.retry, { backgroundColor: accentColor }]}>
-          <Text style={styles.retryLabel}>Try again</Text>
+          <Text style={styles.retryLabel}>{t("directions.retry")}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -236,14 +242,14 @@ function SheetBody({
     <>
       <View style={[styles.summary, { borderBottomColor: borderColor }]}>
         <Text style={[styles.duration, { color: textColor }]}>
-          {formatDuration(route.durationSeconds)}
+          {formatDuration(route.durationSeconds, t)}
         </Text>
         <Text style={[styles.summaryMeta, { color: mutedColor }]}>
-          {formatDistance(route.distanceMeters)}
+          {formatDistance(route.distanceMeters, t)}
           {route.transfers !== undefined && route.mode === "transit"
-            ? ` · ${route.transfers} ${route.transfers === 1 ? "transfer" : "transfers"}`
+            ? ` · ${t(route.transfers === 1 ? "directions.transfer" : "directions.transfers", { count: route.transfers })}`
             : ""}
-          {route.walkSeconds ? ` · ${formatDuration(route.walkSeconds)} walking` : ""}
+          {route.walkSeconds ? ` · ${t("directions.walking", { time: formatDuration(route.walkSeconds, t) })}` : ""}
         </Text>
       </View>
 
@@ -274,6 +280,7 @@ interface StepRowProps {
 }
 
 function StepRow({ step, isLast, textColor, mutedColor, borderColor, surfaceAltColor }: StepRowProps) {
+  const { t } = useLanguage();
   const accent = step.lineColor ?? mutedColor;
 
   return (
@@ -295,7 +302,7 @@ function StepRow({ step, isLast, textColor, mutedColor, borderColor, surfaceAltC
             </View>
           )}
           <Text style={[styles.stepDuration, { color: mutedColor }]}>
-            {formatDuration(step.durationSeconds)}
+            {formatDuration(step.durationSeconds, t)}
           </Text>
         </View>
 
@@ -304,12 +311,12 @@ function StepRow({ step, isLast, textColor, mutedColor, borderColor, surfaceAltC
         <View style={styles.stepMetaRow}>
           {step.stopCount !== undefined && step.mode !== "WALK" && (
             <Text style={[styles.stepMeta, { color: mutedColor }]}>
-              {step.stopCount} {step.stopCount === 1 ? "stop" : "stops"}
+              {t(step.stopCount === 1 ? "directions.stop" : "directions.stops", { count: step.stopCount })}
             </Text>
           )}
           {step.distanceMeters > 0 && (
             <Text style={[styles.stepMeta, { color: mutedColor }]}>
-              {formatDistance(step.distanceMeters)}
+              {formatDistance(step.distanceMeters, t)}
             </Text>
           )}
         </View>
@@ -320,7 +327,10 @@ function StepRow({ step, isLast, textColor, mutedColor, borderColor, surfaceAltC
           <View style={[styles.crowdRow, { borderColor }]}>
             <View style={[styles.crowdDot, { backgroundColor: CROWD_COLORS[step.crowd.level] }]} />
             <Text style={[styles.crowdText, { color: mutedColor }]}>
-              {step.crowd.level} crowd at {step.fromName ? shortStationName(step.fromName) : "this stop"}
+              {t("directions.crowdAt", {
+                level: t(crowdKey(step.crowd.level)),
+                station: step.fromName ? shortStationName(step.fromName) : t("directions.thisStop"),
+              })}
             </Text>
           </View>
         )}
@@ -335,17 +345,19 @@ function shortStationName(name: string): string {
   return name.replace(/\s+Station$/i, "");
 }
 
-function formatDuration(seconds: number): string {
+function formatDuration(seconds: number, t: Translate): string {
   const minutes = Math.round(seconds / 60);
-  if (minutes < 1) return "<1 min";
-  if (minutes < 60) return `${minutes} min`;
+  if (minutes < 1) return t("duration.underMin");
+  if (minutes < 60) return t("duration.min", { m: minutes });
   const hours = Math.floor(minutes / 60);
   const remainder = minutes % 60;
-  return remainder ? `${hours} hr ${remainder} min` : `${hours} hr`;
+  return remainder ? t("duration.hrMin", { h: hours, m: remainder }) : t("duration.hr", { h: hours });
 }
 
-function formatDistance(meters: number): string {
-  return meters < 1000 ? `${Math.round(meters)} m` : `${(meters / 1000).toFixed(1)} km`;
+function formatDistance(meters: number, t: Translate): string {
+  return meters < 1000
+    ? t("distance.m", { n: Math.round(meters) })
+    : t("distance.km", { n: (meters / 1000).toFixed(1) });
 }
 
 const styles = StyleSheet.create({

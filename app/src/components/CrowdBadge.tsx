@@ -20,7 +20,7 @@ export const CROWD_COLORS: Record<CrowdLevel, string> = {
   Unavailable: "#9E9E9E",
 };
 
-function crowdKey(level: CrowdLevel): StringKey {
+export function crowdKey(level: CrowdLevel): StringKey {
   if (level === "Very High") return "crowd.VeryHigh";
   return `crowd.${level}` as StringKey;
 }

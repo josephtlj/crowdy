@@ -82,7 +82,7 @@ export default function DetailScreen({ route, navigation }: Props) {
           onPress={toggleSaved}
           hitSlop={10}
           style={styles.headerSave}
-          accessibilityLabel={saved ? "Remove from saved" : "Save venue"}
+          accessibilityLabel={saved ? t("detail.unsave") : t("detail.save")}
         >
           <Ionicons name={saved ? "heart" : "heart-outline"} size={22} color={saved ? colors.accent : colors.text} />
         </TouchableOpacity>
@@ -185,7 +185,7 @@ export default function DetailScreen({ route, navigation }: Props) {
         onPress={() => navigation.navigate("Directions", { venueId: venue.id })}
       >
         <Ionicons name="navigate" size={17} color="#FFFFFF" />
-        <Text style={styles.directionsLabel}>Directions</Text>
+        <Text style={styles.directionsLabel}>{t("detail.directions")}</Text>
       </TouchableOpacity>
 
       {/* Transit already has real, official LTA crowd data - this is only
