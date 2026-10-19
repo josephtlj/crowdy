@@ -20,6 +20,8 @@ import { VenueHours } from "../components/VenueHours";
 import { formatUpdatedAt } from "../services/updatedAt";
 import { useTheme } from "../theme/ThemeContext";
 import { useAuth } from "../context/AuthContext";
+import { useLanguage } from "../i18n/LanguageContext";
+import { sourceLabel } from "../i18n/strings";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Detail">;
 
@@ -27,6 +29,7 @@ export default function DetailScreen({ route, navigation }: Props) {
   const { venueId } = route.params;
   const { colors } = useTheme();
   const auth = useAuth();
+  const { t, language } = useLanguage();
   const [venue, setVenue] = useState<Venue | null>(null);
   const [alternatives, setAlternatives] = useState<Venue[]>([]);
   const [loading, setLoading] = useState(true);
@@ -129,7 +132,7 @@ export default function DetailScreen({ route, navigation }: Props) {
   if (!venue) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <Text style={{ color: colors.text }}>Venue not found.</Text>
+        <Text style={{ color: colors.text }}>{t("detail.notFound")}</Text>
       </View>
     );
   }
@@ -156,18 +159,23 @@ export default function DetailScreen({ route, navigation }: Props) {
             "Unavailable" means no reading exists yet - showing "0% of peak"
             next to it would misread as an actual low-crowd measurement. */}
         {venue.category !== "Transit" && venue.crowdLevel !== "Unavailable" && (
-          <Text style={[styles.percent, { color: colors.text }]}>{venue.crowdPercent}% of peak</Text>
+          <Text style={[styles.percent, { color: colors.text }]}>
+            {t("detail.percentOfPeak", { percent: venue.crowdPercent })}
+          </Text>
         )}
       </View>
 
       <View style={styles.updatedRow}>
         <Text style={[styles.updated, { color: colors.textMuted }]}>
-          Updated {formatUpdatedAt(venue.lastUpdated)} · source: {venue.source}
+          {t("detail.updated", {
+            time: formatUpdatedAt(venue.lastUpdated, language),
+            source: sourceLabel(venue.source, language),
+          })}
         </Text>
         {refreshingCrowd && (
           <>
             <ActivityIndicator size="small" style={styles.updatedSpinner} />
-            <Text style={[styles.updated, { color: colors.textMuted }]}>Refreshing…</Text>
+            <Text style={[styles.updated, { color: colors.textMuted }]}>{t("detail.refreshing")}</Text>
           </>
         )}
       </View>
@@ -188,7 +196,7 @@ export default function DetailScreen({ route, navigation }: Props) {
       {venue.category !== "Transit" && (
         <View style={styles.section}>
           {venue.hours && <VenueHours hours={venue.hours} />}
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Typical Crowd Levels</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t("detail.typical")}</Text>
           {venue.hourly && venue.hourly.length > 0 ? (
             <PopularTimesChart
               hourly={venue.hourly}
@@ -197,7 +205,7 @@ export default function DetailScreen({ route, navigation }: Props) {
             />
           ) : (
             <Text style={[styles.meta, { color: colors.textMuted }]}>
-              No crowd data available yet for this venue.
+              {t("detail.noCrowd")}
             </Text>
           )}
         </View>
@@ -205,10 +213,10 @@ export default function DetailScreen({ route, navigation }: Props) {
 
       {venue.carparks && venue.carparks.length > 0 && (
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Parking availability</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t("detail.parking")}</Text>
           {venue.carparks.map((cp) => (
             <Text key={cp.label} style={[styles.meta, { color: colors.textMuted }]}>
-              {cp.label}: {cp.availableLots} lots available
+              {t("detail.lots", { label: cp.label, count: cp.availableLots })}
             </Text>
           ))}
         </View>
@@ -217,7 +225,7 @@ export default function DetailScreen({ route, navigation }: Props) {
       {alternatives.length > 0 && (
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Alternatives nearby
+            {t("detail.alternatives")}
           </Text>
           {alternatives.map((alt) => (
             <TouchableOpacity
@@ -228,7 +236,7 @@ export default function DetailScreen({ route, navigation }: Props) {
               <View style={styles.rowText}>
                 <Text style={[styles.altName, { color: colors.text }]}>{alt.name}</Text>
                 <Text style={[styles.meta, { color: colors.textMuted }]}>
-                  {alt.distanceKm?.toFixed(1)} km away
+                  {t("detail.kmAway", { distance: alt.distanceKm?.toFixed(1) ?? "" })}
                 </Text>
               </View>
               <CrowdBadge level={alt.crowdLevel} />

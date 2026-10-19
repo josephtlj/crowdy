@@ -4,6 +4,7 @@ import { Venue } from "../types/venue";
 import { MapRegion } from "../types/region";
 import { RailLineSegment } from "../types/railLine";
 import { LayerState } from "../types/layers";
+import { useLanguage } from "../i18n/LanguageContext";
 
 interface Props {
   initialRegion: MapRegion;
@@ -21,9 +22,10 @@ interface Props {
 // VenueMap.native.tsx when bundling for web, so react-native-maps is never
 // imported in the web build at all.
 export function VenueMap(_props: Props) {
+  const { t } = useLanguage();
   return (
     <View style={styles.placeholder}>
-      <Text style={styles.text}>Map view is available in the iOS/Android app.</Text>
+      <Text style={styles.text}>{t("map.web")}</Text>
     </View>
   );
 }

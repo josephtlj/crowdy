@@ -9,6 +9,13 @@ export interface OpenHoursEntry {
 
 export const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
+export type HoursStatusDetail =
+  | { type: "closes"; time: string }
+  | { type: "always" }
+  | { type: "opens"; time: string }
+  | { type: "opensTomorrow"; time: string }
+  | { type: "opensOn"; time: string; day: number };
+
 export function parseTimeToMinutes(s: string): number | null {
   const m = s.match(/(\d+)(?::(\d+))?\s*(am|pm)/i);
   if (!m) return null;
@@ -22,7 +29,7 @@ export function parseTimeToMinutes(s: string): number | null {
 // otherwise - searching forward through the week for the next day that
 // actually has hours, so a fully-closed today (or a bad/unparseable entry)
 // still resolves to a sensible next-opening message instead of nothing.
-export function getTodayStatus(hours: OpenHoursEntry[]): { open: boolean; detail: string } | null {
+export function getTodayStatus(hours: OpenHoursEntry[]): { open: boolean; detail: HoursStatusDetail | null } | null {
   if (hours.length === 0) return null;
   const now = new Date();
   const todayDay = now.getDay();
@@ -38,7 +45,7 @@ export function getTodayStatus(hours: OpenHoursEntry[]): { open: boolean; detail
     const yOpen = parseTimeToMinutes(yesterday.open);
     const yClose = parseTimeToMinutes(yesterday.close);
     if (yOpen !== null && yClose !== null && yClose < yOpen && nowMinutes < yClose) {
-      return { open: true, detail: `Closes ${yesterday.close}` };
+      return { open: true, detail: { type: "closes", time: yesterday.close } };
     }
   }
 
@@ -48,7 +55,7 @@ export function getTodayStatus(hours: OpenHoursEntry[]): { open: boolean; detail
     // venue (see popularTimes.ts) - "Closes 11:59 pm" would read as closing
     // near midnight rather than never closing, so it gets its own label.
     if (today.open === "12 am" && today.close === "11:59 pm") {
-      return { open: true, detail: "Open 24 hours" };
+      return { open: true, detail: { type: "always" } };
     }
     const openMin = parseTimeToMinutes(today.open);
     const closeMin = parseTimeToMinutes(today.close);
@@ -57,10 +64,10 @@ export function getTodayStatus(hours: OpenHoursEntry[]): { open: boolean; detail
       // (today's own overnight tail, picked up again tomorrow) - once
       // past today's open, it stays "open" through to midnight regardless.
       if (nowMinutes >= openMin && (nowMinutes < closeMin || closeMin < openMin)) {
-        return { open: true, detail: `Closes ${today.close}` };
+        return { open: true, detail: { type: "closes", time: today.close } };
       }
       if (nowMinutes < openMin) {
-        return { open: false, detail: `Opens ${today.open}` };
+        return { open: false, detail: { type: "opens", time: today.open } };
       }
     }
   }
@@ -69,8 +76,11 @@ export function getTodayStatus(hours: OpenHoursEntry[]): { open: boolean; detail
     const day = (todayDay + i) % 7;
     const entry = hours.find((h) => h.day === day);
     if (entry) {
-      return { open: false, detail: `Opens ${entry.open} ${i === 1 ? "tomorrow" : DAY_NAMES[day]}` };
+      return {
+        open: false,
+        detail: i === 1 ? { type: "opensTomorrow", time: entry.open } : { type: "opensOn", time: entry.open, day },
+      };
     }
   }
-  return { open: false, detail: "" };
+  return { open: false, detail: null };
 }

@@ -1,6 +1,8 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { CrowdLevel } from "../types/venue";
+import { useLanguage } from "../i18n/LanguageContext";
+import { StringKey } from "../i18n/strings";
 
 // Colour scheme matches SpaceOut.gov.sg (green/yellow/orange/red) since
 // that's the crowd-level convention Singapore users already recognise.
@@ -18,10 +20,16 @@ export const CROWD_COLORS: Record<CrowdLevel, string> = {
   Unavailable: "#9E9E9E",
 };
 
+function crowdKey(level: CrowdLevel): StringKey {
+  if (level === "Very High") return "crowd.VeryHigh";
+  return `crowd.${level}` as StringKey;
+}
+
 export function CrowdBadge({ level }: { level: CrowdLevel }) {
+  const { t } = useLanguage();
   return (
     <View style={[styles.badge, { backgroundColor: CROWD_COLORS[level] }]}>
-      <Text style={styles.text}>{level}</Text>
+      <Text style={styles.text}>{t(crowdKey(level))}</Text>
     </View>
   );
 }

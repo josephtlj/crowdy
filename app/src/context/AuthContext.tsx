@@ -4,6 +4,7 @@ import * as api from "../services/api";
 import { loadSession, storeSession, clearSession } from "../services/sessionStorage";
 import { loadSavedVenueIds, persistSavedVenueIds } from "../services/savedVenues";
 import { mergeGuestSavesIntoAccount } from "../services/mergeGuestSaves";
+import { useLanguage } from "../i18n/LanguageContext";
 
 interface AuthContextValue {
   // undefined while the stored session is still being read on boot - lets
@@ -24,6 +25,7 @@ function errorMessage(err: unknown): string {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { t } = useLanguage();
   const [accountId, setAccountId] = useState<number | null>(null);
   const [username, setUsername] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -53,11 +55,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   function promptToMergeLocalSaves(token: string, localIds: string[]): Promise<void> {
     return new Promise((resolve) => {
       Alert.alert(
-        "Saved venues on this device",
-        `This device has ${localIds.length} venue${localIds.length === 1 ? "" : "s"} saved without an account. Add them to your saved list?`,
+        t("auth.savedTitle"),
+        t("auth.savedBody", { count: localIds.length }),
         [
           {
-            text: "Don't Add",
+            text: t("auth.dontAdd"),
             style: "cancel",
             onPress: async () => {
               await persistSavedVenueIds(new Set());
@@ -65,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             },
           },
           {
-            text: "Add to My Saved",
+            text: t("auth.add"),
             onPress: async () => {
               const result = await mergeGuestSavesIntoAccount(
                 token,
@@ -132,7 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setToken(null);
       },
     }),
-    [accountId, username, token, loading]
+    [accountId, username, token, loading, t]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

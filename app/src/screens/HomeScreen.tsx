@@ -38,6 +38,7 @@ import { VenueRow } from "../components/VenueRow";
 import { VenueMap } from "../components/VenueMap";
 import { TabBar, TabKey } from "../components/TabBar";
 import { useTheme } from "../theme/ThemeContext";
+import { useLanguage } from "../i18n/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 
 // Marina Bay, used only if the user denies location permission.
@@ -80,6 +81,7 @@ function isWithinRegion(venue: Venue, region: MapRegion): boolean {
 export default function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const { t } = useLanguage();
   const auth = useAuth();
   const [venues, setVenues] = useState<Venue[]>([]);
   const [railLines, setRailLines] = useState<RailLineSegment[]>([]);
@@ -459,7 +461,7 @@ export default function HomeScreen({ navigation }: Props) {
               style={[styles.searchInput, { color: colors.text }]}
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="Search here"
+              placeholder={t("search.placeholder")}
               placeholderTextColor={colors.textMuted}
               autoCapitalize="none"
               autoCorrect={false}
@@ -496,14 +498,14 @@ export default function HomeScreen({ navigation }: Props) {
           ListEmptyComponent={
             <Text style={[styles.empty, { color: colors.textMuted }]}>
               {activeTab === "saved"
-                ? "No saved areas."
+                ? t("saved.empty")
                 : activeTab === "search"
                   ? searchQuery.trim()
-                    ? `No venues match "${searchQuery.trim()}".`
-                    : "Start typing to search."
+                    ? t("search.noMatch", { query: searchQuery.trim() })
+                    : t("search.typeToSearch")
                   : noLayersOn
-                    ? "Toggle on venue types to view crowds."
-                    : "No venues in view - pan or zoom out the map."}
+                    ? t("layers.none")
+                    : t("map.empty")}
             </Text>
           }
           renderItem={({ item }) => (

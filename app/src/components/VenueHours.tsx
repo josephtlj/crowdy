@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useTheme } from "../theme/ThemeContext";
-import { DAY_NAMES, getTodayStatus, OpenHoursEntry } from "../services/hours";
+import { getTodayStatus, OpenHoursEntry } from "../services/hours";
+import { useLanguage } from "../i18n/LanguageContext";
+import { formatClock, formatHoursDetail, StringKey } from "../i18n/strings";
 
 interface Props {
   hours: OpenHoursEntry[];
@@ -15,6 +17,7 @@ const OPEN_COLOR = "#2E7D32";
 // weekly Popular Times data is already ordered.
 export function VenueHours({ hours }: Props) {
   const { colors } = useTheme();
+  const { t, language } = useLanguage();
   const [expanded, setExpanded] = useState(false);
   const status = getTodayStatus(hours);
   if (!status) return null;
@@ -26,10 +29,10 @@ export function VenueHours({ hours }: Props) {
     <View style={styles.container}>
       <TouchableOpacity style={styles.summaryRow} onPress={() => setExpanded((e) => !e)} activeOpacity={0.7}>
         <Text style={[styles.summary, { color: colors.textMuted }]}>
-          Hours: <Text style={{ color: status.open ? OPEN_COLOR : colors.textMuted, fontWeight: "600" }}>
-            {status.open ? "Open" : "Closed"}
+          {t("hours.prefix")} <Text style={{ color: status.open ? OPEN_COLOR : colors.textMuted, fontWeight: "600" }}>
+            {status.open ? t("hours.open") : t("hours.closed")}
           </Text>
-          {status.detail ? ` · ${status.detail}` : ""}
+          {status.detail ? ` · ${formatHoursDetail(status.detail, language)}` : ""}
         </Text>
         <Text style={[styles.chevron, { color: colors.textMuted }]}>{expanded ? "▲" : "▼"}</Text>
       </TouchableOpacity>
@@ -40,14 +43,14 @@ export function VenueHours({ hours }: Props) {
             return (
               <View key={day} style={styles.weekRow}>
                 <Text style={[styles.weekDay, { color: colors.text }, day === todayDay && styles.weekDayToday]}>
-                  {DAY_NAMES[day]}
+                  {t(`day.${day}` as StringKey)}
                 </Text>
                 <Text style={[styles.weekTime, { color: colors.textMuted }]}>
                   {!entry
-                    ? "Closed"
+                    ? t("hours.closed")
                     : entry.open === "12 am" && entry.close === "11:59 pm"
-                      ? "Open 24 hours"
-                      : `${entry.open} – ${entry.close}`}
+                      ? t("hours.always")
+                      : `${formatClock(entry.open, language)} – ${formatClock(entry.close, language)}`}
                 </Text>
               </View>
             );

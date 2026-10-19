@@ -5,6 +5,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { RootStackParamList } from "./src/navigation/types";
 import { ThemeProvider, useTheme } from "./src/theme/ThemeContext";
+import { LanguageProvider, useLanguage } from "./src/i18n/LanguageContext";
 import { AuthProvider } from "./src/context/AuthContext";
 import HomeScreen from "./src/screens/HomeScreen";
 import DetailScreen from "./src/screens/DetailScreen";
@@ -19,6 +20,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 // always showing the system's light-mode default.
 function Navigation() {
   const { mode, colors } = useTheme();
+  const { t } = useLanguage();
 
   // Native-stack's header derives its background/tint from this `theme`
   // object automatically (colors.card / colors.text) - previously it also
@@ -63,10 +65,10 @@ function Navigation() {
           removes the more noticeable part of what flashes. */}
       <Stack.Navigator screenOptions={{ headerBackButtonDisplayMode: "minimal" }}>
         <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="Detail" component={DetailScreen} options={{ title: "Venue" }} />
+        <Stack.Screen name="Detail" component={DetailScreen} options={{ title: t("screen.venue") }} />
         {/* Title is replaced with the destination's name once it loads. */}
         <Stack.Screen name="Directions" component={DirectionsScreen} options={{ title: "Directions" }} />
-        <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
+        <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: t("screen.settings") }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -75,11 +77,13 @@ function Navigation() {
 export default function App() {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <SafeAreaProvider>
-          <Navigation />
-        </SafeAreaProvider>
-      </AuthProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <SafeAreaProvider>
+            <Navigation />
+          </SafeAreaProvider>
+        </AuthProvider>
+      </LanguageProvider>
     </ThemeProvider>
   );
 }
