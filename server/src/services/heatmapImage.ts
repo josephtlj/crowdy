@@ -49,6 +49,25 @@ function colorForPercent(pct: number): [number, number, number] {
   return hexToRgb(COLOR_STOPS[COLOR_STOPS.length - 1].hex);
 }
 
+// Only crowds give off heat: Moderate and busier. A quiet or closed venue
+// draws nothing, so the colour on the map means "busy here" rather than
+// "a venue is here".
+const HEAT_LEVELS: Venue["crowdLevel"][] = ["Moderate", "High", "Very High"];
+
+// LTA only gives stations a level, not a percentage - so on the heatmap each
+// level is drawn at the middle of its colour band above, matching the
+// station's badge. (Their crowdPercent of 50/80 would draw High at 80, the
+// Very High red.) Used only for colour; never shown as a number.
+const STATION_HEAT_PERCENT: Partial<Record<Venue["crowdLevel"], number>> = {
+  Moderate: 47,
+  High: 70,
+};
+
+function heatPercent(v: Venue): number | undefined {
+  if (!HEAT_LEVELS.includes(v.crowdLevel)) return undefined;
+  return v.category === "Transit" ? STATION_HEAT_PERCENT[v.crowdLevel] : v.crowdPercent;
+}
+
 interface HeatPoint {
   x: number;
   y: number;
@@ -56,20 +75,18 @@ interface HeatPoint {
   rgb: [number, number, number];
 }
 
-// A closed (or not-yet-scraped) venue has no real crowd reading right now -
-// same reasoning as the client-side filter this replaces (VenueMap.native.tsx):
-// showing a blob for it would read as "some data, just quiet" when the
-// honest answer is "no signal," same as anywhere else with no venue nearby.
+// Malls and stations alike, Moderate and busier only (see HEAT_LEVELS) -
+// quiet, closed and not-yet-scraped venues draw nothing.
 function projectVenues(venues: Venue[]): HeatPoint[] {
   return venues
-    .filter(
-      (v) => v.category === "Venue" && v.heatmapRadiusM && v.crowdLevel !== "Closed" && v.crowdLevel !== "Unavailable"
-    )
+    .filter((v) => v.heatmapRadiusM && heatPercent(v) !== undefined)
+    // Stations first, so the wider mall halos are drawn over them.
+    .sort((a, b) => (a.category === b.category ? 0 : a.category === "Transit" ? -1 : 1))
     .map((v) => ({
       x: (v.lng - HEATMAP_BOUNDS.west) * PIXELS_PER_DEGREE,
       y: (HEATMAP_BOUNDS.north - v.lat) * PIXELS_PER_DEGREE, // canvas y grows downward, north is up
       radiusPx: (v.heatmapRadiusM as number) * PIXELS_PER_METER,
-      rgb: colorForPercent(v.crowdPercent),
+      rgb: colorForPercent(heatPercent(v) as number),
     }));
 }
 
@@ -97,18 +114,14 @@ export async function generateHeatmapPng(venues: Venue[]): Promise<Buffer> {
   try {
     await page.setContent("<!DOCTYPE html><html><body></body></html>");
     const dataUrl = await page.evaluate(
-      (width: number, height: number, points: HeatPoint[], baseFill: string) => {
+      (width: number, height: number, points: HeatPoint[]) => {
         const canvas = document.createElement("canvas");
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
 
-        // Faint neutral wash over the whole map first - areas with no
-        // venue nearby read as "no signal" rather than bare map, same as
-        // the flat grey base circle this replaces.
-        ctx.fillStyle = baseFill;
-        ctx.fillRect(0, 0, width, height);
-
+        // Transparent everywhere except the hotspots themselves - no tint
+        // over quiet areas, so only busy places stand out on the map.
         for (const p of points) {
           const [r, g, b] = p.rgb;
           const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radiusPx);
@@ -124,8 +137,7 @@ export async function generateHeatmapPng(venues: Venue[]): Promise<Buffer> {
       },
       IMAGE_WIDTH,
       IMAGE_HEIGHT,
-      points,
-      "rgba(120,120,120,0.12)"
+      points
     );
     return Buffer.from(dataUrl.split(",")[1], "base64");
   } finally {

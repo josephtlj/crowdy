@@ -6,7 +6,7 @@ import { fetchStationCrowdLevels, mapCrowdCode } from "../services/lta";
 import { fetchLtaCarparkRecords } from "../services/carparks";
 import { spreadOverlappingVenues } from "../services/declutter";
 import { getLatestPopularTimes } from "../services/popularTimes";
-import { HEATMAP_RADII_M } from "../services/heatmap";
+import { HEATMAP_RADII_M, STATION_HEATMAP_RADII_M } from "../services/heatmap";
 
 // Last 6-digit group, so a street number earlier in the address is ignored.
 export function postalCodeFromAddress(address: string): string | undefined {
@@ -173,6 +173,7 @@ async function getTransportVenues(): Promise<Venue[]> {
       source: "LTA",
       lastUpdated: reading?.at ?? nowIso,
       hours: STATION_HOURS[station.id],
+      heatmapRadiusM: STATION_HEATMAP_RADII_M.get(station.id),
     };
     return venue;
   });

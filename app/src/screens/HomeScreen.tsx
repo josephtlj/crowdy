@@ -35,6 +35,7 @@ import { haversineKm } from "../services/distance";
 import { venueSearchRank } from "../services/venueSearch";
 import { loadSavedVenueIds, persistSavedVenueIds } from "../services/savedVenues";
 import { VenueRow } from "../components/VenueRow";
+import { CrowdSnapshot } from "../components/CrowdSnapshot";
 import { VenueMap } from "../components/VenueMap";
 import { TabBar, TabKey } from "../components/TabBar";
 import { useTheme } from "../theme/ThemeContext";
@@ -99,12 +100,12 @@ export default function HomeScreen({ navigation }: Props) {
   // navigating to a second page.
   const [activeTab, setActiveTab] = useState<TabKey>("areas");
   const [searchQuery, setSearchQuery] = useState("");
-  // Off by default - like Google/Apple Maps' own "explore" view, nothing
-  // custom is drawn until the User picks a layer. Lives here (not in
-  // VenueMap) so the list below can filter to match what's on the map.
+  // Malls on by default, so the app opens on pins and a list of nearby
+  // malls rather than a bare map. Lives here (not in VenueMap) so the list
+  // below can filter to match what's on the map.
   const [layers, setLayers] = useState<LayerState>({
     transit: false,
-    venue: false,
+    venue: true,
   });
   // A 401 here means the server rejected the token itself (expired, or
   // invalidated some other way) rather than a normal network hiccup - logs
@@ -495,6 +496,16 @@ export default function HomeScreen({ navigation }: Props) {
           onScrollToIndexFailed={(info) => {
             listRef.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: true });
           }}
+          ListHeaderComponent={
+            activeTab === "areas" ? (
+              <CrowdSnapshot
+                venues={venues}
+                userLocation={userLocation}
+                colors={colors}
+                onOpenVenue={handleSeeDetails}
+              />
+            ) : null
+          }
           ListEmptyComponent={
             <Text style={[styles.empty, { color: colors.textMuted }]}>
               {activeTab === "saved"
