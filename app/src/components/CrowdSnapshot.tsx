@@ -4,11 +4,16 @@ import { Venue, CrowdLevel } from "../types/venue";
 import { ThemeColors } from "../theme/ThemeContext";
 import { useLanguage } from "../i18n/LanguageContext";
 import { haversineKm } from "../services/distance";
-import { CrowdBadge, CROWD_COLORS } from "./CrowdBadge";
+import { CrowdBadge, CROWD_COLORS, crowdKey } from "./CrowdBadge";
 
 // A quiet mall this close counts as "near you"; past it, the card falls
 // back to the quietest open mall anywhere.
 const NEAR_KM = 5;
+
+// The "Near you" line: every open mall and station within this distance.
+const AROUND_KM = 2;
+// Busiest last, so a tie goes to the busier level.
+const LEVEL_ORDER: CrowdLevel[] = ["Low", "Moderate", "High", "Very High"];
 
 interface Props {
   venues: Venue[];
@@ -22,6 +27,29 @@ interface Props {
 // Built only from the venue list already loaded - no extra requests.
 export function CrowdSnapshot({ venues, userLocation, colors, onOpenVenue }: Props) {
   const { t } = useLanguage();
+
+  // The level most open venues near you share - a level, not an average
+  // percentage, since each mall's percentage is against its own peak and
+  // stations have no percentage at all.
+  const around = useMemo(() => {
+    if (!userLocation) return null;
+    const nearby = venues.filter(
+      (v) =>
+        LEVEL_ORDER.includes(v.crowdLevel) &&
+        haversineKm(userLocation.lat, userLocation.lng, v.lat, v.lng) <= AROUND_KM
+    );
+    if (nearby.length === 0) return { level: null, count: 0 };
+    let level: CrowdLevel = "Low";
+    let best = -1;
+    for (const candidate of LEVEL_ORDER) {
+      const n = nearby.filter((v) => v.crowdLevel === candidate).length;
+      if (n > 0 && n >= best) {
+        level = candidate;
+        best = n;
+      }
+    }
+    return { level, count: nearby.length };
+  }, [venues, userLocation]);
 
   const { counts, total, quietest, quietestKm } = useMemo(() => {
     const malls = venues.filter((v) => v.category === "Venue" && v.crowdLevel !== "Unavailable");
@@ -71,6 +99,17 @@ export function CrowdSnapshot({ venues, userLocation, colors, onOpenVenue }: Pro
         ))}
       </View>
 
+      {around && (
+        <View style={[styles.around, { borderTopColor: colors.border }]}>
+          <View style={[styles.dot, { backgroundColor: around.level ? CROWD_COLORS[around.level] : CROWD_COLORS.Closed }]} />
+          <Text style={[styles.aroundText, { color: colors.text }]}>
+            {around.level
+              ? t("snapshot.around", { km: AROUND_KM, level: t(crowdKey(around.level)), count: around.count })
+              : t("snapshot.aroundClosed", { km: AROUND_KM })}
+          </Text>
+        </View>
+      )}
+
       {quietest ? (
         <TouchableOpacity
           style={[styles.pick, { borderTopColor: colors.border }]}
@@ -115,6 +154,14 @@ const styles = StyleSheet.create({
   stat: { flexDirection: "row", alignItems: "center", gap: 6 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   statText: { fontSize: 13, fontVariant: ["tabular-nums"] },
+  around: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  aroundText: { fontSize: 14, flex: 1 },
   pick: {
     flexDirection: "row",
     alignItems: "center",
