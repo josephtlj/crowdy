@@ -1,6 +1,8 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useTheme } from "../theme/ThemeContext";
+import { useLanguage } from "../i18n/LanguageContext";
+import { Language } from "../i18n/strings";
 
 interface Props {
   hourly: { hour: number; percent: number }[];
@@ -9,7 +11,7 @@ interface Props {
 }
 
 const CHART_HEIGHT = 90;
-const LABEL_WIDTH = 34; // wide enough that "12pm"/"10pm" never wraps, however narrow its bar column is
+const LABEL_WIDTH = 56; // wide enough for "12pm" and "凌晨12点"
 const DOT_COUNT = 9;
 const DOT_SIZE = 3;
 const DOT_GAP = (CHART_HEIGHT - DOT_COUNT * DOT_SIZE) / (DOT_COUNT - 1);
@@ -20,7 +22,12 @@ const TARGET_LABEL_COUNT = 6; // roughly this many labels regardless of how many
 const SELECTED_COLOR = "#1A73E8";
 const CURRENT_COLOR = "#E53935";
 
-function formatHour(hour: number): string {
+function formatHour(hour: number, language: Language): string {
+  if (language === "zh") {
+    if (hour === 0) return "凌晨12点";
+    if (hour === 12) return "中午12点";
+    return hour < 12 ? `上午${hour}点` : `下午${hour - 12}点`;
+  }
   if (hour === 0) return "12am";
   if (hour === 12) return "12pm";
   return hour < 12 ? `${hour}am` : `${hour - 12}pm`;
@@ -45,6 +52,7 @@ function columnCenterPercent(index: number, total: number): number {
 // filled edge to edge with bars - doesn't have room for.
 export function PopularTimesChart({ hourly, selectedHour, onSelectHour }: Props) {
   const { colors } = useTheme();
+  const { t, language } = useLanguage();
   const currentHour = new Date().getHours();
 
   const selectedEntry = hourly.find((e) => e.hour === selectedHour) ?? hourly[0];
@@ -59,8 +67,8 @@ export function PopularTimesChart({ hourly, selectedHour, onSelectHour }: Props)
     <View style={styles.container}>
       {selectedEntry && (
         <Text style={[styles.callout, { color: colors.text }]}>
-          {formatHour(selectedEntry.hour)}
-          {selectedEntry.hour === currentHour ? " (now)" : ""}: {selectedEntry.percent}% of crowd peak
+          {formatHour(selectedEntry.hour, language)}
+          {selectedEntry.hour === currentHour ? ` ${t("chart.now")}` : ""}: {t("chart.peak", { percent: selectedEntry.percent })}
         </Text>
       )}
       <View style={styles.barsRowWrapper}>
@@ -119,7 +127,7 @@ export function PopularTimesChart({ hourly, selectedHour, onSelectHour }: Props)
                   },
                 ]}
               >
-                {formatHour(entry.hour)}
+                {formatHour(entry.hour, language)}
               </Text>
             )
         )}

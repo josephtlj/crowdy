@@ -10,6 +10,8 @@ import { haversineKm } from "../services/distance";
 import { RouteMap } from "../components/RouteMap";
 import { DirectionsSheet, COLLAPSED_FRACTION } from "../components/DirectionsSheet";
 import { useTheme } from "../theme/ThemeContext";
+import { useLanguage } from "../i18n/LanguageContext";
+import { StringKey } from "../i18n/strings";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Directions">;
 
@@ -24,6 +26,7 @@ const REROUTE_AFTER_M = 150;
 export default function DirectionsScreen({ route: navRoute, navigation }: Props) {
   const { venueId } = navRoute.params;
   const { colors } = useTheme();
+  const { t } = useLanguage();
   const { height: screenHeight } = useWindowDimensions();
 
   const [venue, setVenue] = useState<Venue | null>(null);
@@ -34,8 +37,10 @@ export default function DirectionsScreen({ route: navRoute, navigation }: Props)
   const [mode, setMode] = useState<TravelMode>("transit");
   const [route, setRoute] = useState<Route | null>(null);
   const [loadingRoute, setLoadingRoute] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [setupError, setSetupError] = useState<string | null>(null);
+  // Kept as string keys and translated when drawn, so switching language
+  // updates a message already on screen.
+  const [error, setError] = useState<StringKey | null>(null);
+  const [setupError, setSetupError] = useState<StringKey | null>(null);
 
   const routeOriginRef = useRef<LatLng | null>(null);
   // Each mode's route is kept once fetched, so flicking between tabs to
@@ -69,14 +74,14 @@ export default function DirectionsScreen({ route: navRoute, navigation }: Props)
       if (cancelled) return;
 
       if (!found) {
-        setSetupError("Venue not found.");
+        setSetupError("detail.notFound");
         return;
       }
       setVenue(found);
       navigation.setOptions({ title: found.name });
 
       if (permission.status !== "granted") {
-        setSetupError("Location access is needed to work out directions from where you are.");
+        setSetupError("directions.locationNeeded");
         return;
       }
 
@@ -127,7 +132,7 @@ export default function DirectionsScreen({ route: navRoute, navigation }: Props)
         setRoute(result);
       } catch {
         setRoute(null);
-        setError("Couldn't load this route right now.");
+        setError("directions.loadFailed");
       } finally {
         setLoadingRoute(false);
       }
@@ -142,7 +147,7 @@ export default function DirectionsScreen({ route: navRoute, navigation }: Props)
   if (setupError) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <Text style={[styles.message, { color: colors.textMuted }]}>{setupError}</Text>
+        <Text style={[styles.message, { color: colors.textMuted }]}>{t(setupError)}</Text>
       </View>
     );
   }
@@ -175,7 +180,7 @@ export default function DirectionsScreen({ route: navRoute, navigation }: Props)
         onSelectMode={setMode}
         route={route}
         loading={loadingRoute}
-        error={error}
+        error={error ? t(error) : null}
         onRetry={() => void loadRoute(mode, { useCache: false })}
         destinationName={venue.name}
         destinationCrowd={venue.crowdLevel}

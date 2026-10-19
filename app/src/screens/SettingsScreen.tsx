@@ -11,6 +11,8 @@ import {
 } from "react-native";
 import { useTheme } from "../theme/ThemeContext";
 import { useAuth } from "../context/AuthContext";
+import { useLanguage } from "../i18n/LanguageContext";
+import { Language } from "../i18n/strings";
 
 // Placeholder version string - bump manually until a real build/release
 // process assigns one.
@@ -18,6 +20,7 @@ const APP_VERSION = "1.0.0 (MVP)";
 
 export default function SettingsScreen() {
   const { mode, colors, toggleTheme } = useTheme();
+  const { language, setLanguage, t, errorText } = useLanguage();
   const auth = useAuth();
 
   const [username, setUsername] = useState("");
@@ -34,7 +37,7 @@ export default function SettingsScreen() {
     if (result.ok) {
       setPassword("");
     } else {
-      setError(result.error);
+      setError(errorText(result.error));
     }
   }
 
@@ -43,9 +46,33 @@ export default function SettingsScreen() {
       style={{ backgroundColor: colors.background }}
       contentContainerStyle={styles.content}
     >
-      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>APPEARANCE</Text>
+      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t("settings.language")}</Text>
+      <View style={styles.languageRow}>
+        {(["en", "zh"] as Language[]).map((option) => {
+          const selected = language === option;
+          return (
+            <TouchableOpacity
+              key={option}
+              style={[
+                styles.languageChip,
+                {
+                  backgroundColor: selected ? colors.accent : colors.surface,
+                  borderColor: selected ? colors.accent : colors.border,
+                },
+              ]}
+              onPress={() => setLanguage(option)}
+            >
+              <Text style={[styles.languageChipText, { color: selected ? "#FFFFFF" : colors.text }]}>
+                {option === "en" ? t("settings.english") : t("settings.chinese")}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t("settings.appearance")}</Text>
       <View style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Text style={[styles.rowLabel, { color: colors.text }]}>Dark Mode</Text>
+        <Text style={[styles.rowLabel, { color: colors.text }]}>{t("settings.darkMode")}</Text>
         <Switch
           value={mode === "dark"}
           onValueChange={toggleTheme}
@@ -53,7 +80,7 @@ export default function SettingsScreen() {
         />
       </View>
 
-      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>ACCOUNT</Text>
+      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t("settings.account")}</Text>
 
       {auth.loading ? (
         <View style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -63,14 +90,14 @@ export default function SettingsScreen() {
         <View style={[styles.accountCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.rowLabel, { color: colors.text }]}>{auth.username}</Text>
           <TouchableOpacity style={styles.logoutButton} onPress={() => auth.logout()}>
-            <Text style={[styles.logoutText, { color: colors.accent }]}>Log Out</Text>
+            <Text style={[styles.logoutText, { color: colors.accent }]}>{t("settings.logOut")}</Text>
           </TouchableOpacity>
         </View>
       ) : (
         <View style={[styles.accountCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <TextInput
             style={[styles.input, { color: colors.text, borderColor: colors.border }]}
-            placeholder="Username"
+            placeholder={t("settings.username")}
             placeholderTextColor={colors.textMuted}
             value={username}
             onChangeText={setUsername}
@@ -79,7 +106,7 @@ export default function SettingsScreen() {
           />
           <TextInput
             style={[styles.input, { color: colors.text, borderColor: colors.border }]}
-            placeholder="Password (8+ characters)"
+            placeholder={t("settings.password")}
             placeholderTextColor={colors.textMuted}
             value={password}
             onChangeText={setPassword}
@@ -96,7 +123,7 @@ export default function SettingsScreen() {
               {submitting ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
-                <Text style={styles.authButtonText}>Log In</Text>
+                <Text style={styles.authButtonText}>{t("settings.logIn")}</Text>
               )}
             </TouchableOpacity>
             <TouchableOpacity
@@ -104,14 +131,14 @@ export default function SettingsScreen() {
               onPress={() => handleSubmit("signup")}
               disabled={submitting}
             >
-              <Text style={[styles.authButtonText, { color: colors.accent }]}>Sign Up</Text>
+              <Text style={[styles.authButtonText, { color: colors.accent }]}>{t("settings.signUp")}</Text>
             </TouchableOpacity>
           </View>
           {/* Saving venues already works without an account (on this
               device only) - signing up carries those over rather than
               starting fresh, so this isn't a "you must sign up" gate. */}
           <Text style={[styles.hint, { color: colors.textMuted }]}>
-            Saved venues work without an account too - signing in just syncs them across devices.
+            {t("settings.hint")}
           </Text>
         </View>
       )}
@@ -166,6 +193,15 @@ const styles = StyleSheet.create({
   },
   signupButton: { backgroundColor: "transparent", borderWidth: StyleSheet.hairlineWidth },
   authButtonText: { color: "#FFFFFF", fontWeight: "600", fontSize: 14.5 },
+  languageRow: { flexDirection: "row", gap: 10 },
+  languageChip: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  languageChipText: { fontSize: 15, fontWeight: "600" },
   hint: { fontSize: 12, marginTop: 2 },
   version: { textAlign: "center", fontSize: 12, marginTop: 40 },
 });
