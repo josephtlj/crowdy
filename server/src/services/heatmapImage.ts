@@ -75,11 +75,8 @@ interface HeatPoint {
   rgb: [number, number, number];
 }
 
-// Malls and stations alike, Moderate and busier only (see HEAT_LEVELS).
-// A closed (or not-yet-scraped) venue has no real crowd reading right now -
-// same reasoning as the client-side filter this replaces (VenueMap.native.tsx):
-// showing a blob for it would read as "some data, just quiet" when the
-// honest answer is "no signal," same as anywhere else with no venue nearby.
+// Malls and stations alike, Moderate and busier only (see HEAT_LEVELS) -
+// quiet, closed and not-yet-scraped venues draw nothing.
 function projectVenues(venues: Venue[]): HeatPoint[] {
   return venues
     .filter((v) => v.heatmapRadiusM && heatPercent(v) !== undefined)
@@ -117,18 +114,14 @@ export async function generateHeatmapPng(venues: Venue[]): Promise<Buffer> {
   try {
     await page.setContent("<!DOCTYPE html><html><body></body></html>");
     const dataUrl = await page.evaluate(
-      (width: number, height: number, points: HeatPoint[], baseFill: string) => {
+      (width: number, height: number, points: HeatPoint[]) => {
         const canvas = document.createElement("canvas");
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
 
-        // Faint neutral wash over the whole map first, so the overlay still
-        // reads as switched on where nothing is busy - quiet areas and
-        // areas with no venue nearby both show just this wash.
-        ctx.fillStyle = baseFill;
-        ctx.fillRect(0, 0, width, height);
-
+        // Transparent everywhere except the hotspots themselves - no tint
+        // over quiet areas, so only busy places stand out on the map.
         for (const p of points) {
           const [r, g, b] = p.rgb;
           const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radiusPx);
@@ -144,8 +137,7 @@ export async function generateHeatmapPng(venues: Venue[]): Promise<Buffer> {
       },
       IMAGE_WIDTH,
       IMAGE_HEIGHT,
-      points,
-      "rgba(120,120,120,0.12)"
+      points
     );
     return Buffer.from(dataUrl.split(",")[1], "base64");
   } finally {
