@@ -38,7 +38,8 @@ flowchart LR
 ### Features
 - **Live crowd levels** — MRT/LRT stations from LTA DataMall, malls from Google Popular Times, with each mall's typical week as an hourly chart.
 - **Nearby alternatives** — lower-crowd venues of the same type within 3km.
-- **Map and heatmap** — crowd-coloured pins, a rail-line layer, and an island-wide crowd heatmap overlay (iOS).
+- **Right now card** — the home screen opens on mall pins and a card summing up all malls at a glance (how many are quiet, moderate, busy or closed), the crowd level most places within 2 km share, and the quietest open mall nearby.
+- **Map and heatmap** — crowd-coloured pins, a rail-line layer, and an island-wide crowd heatmap overlay (iOS) where only busy malls and stations (Moderate and above) glow, so hotspots stand out.
 - **Search** — find any tracked venue by name, address or postal code, forgiving small typos in names. *Address, postal code and typo search implemented by Yikai.*
 - **English / 中文** — switch the whole app between English and Simplified Chinese in Settings. *Implemented by Yikai.*
 - **Accounts and favourites** — save venues on the device as a guest, or sign in to sync them across devices.
@@ -152,7 +153,7 @@ Only one machine scrapes Google Popular Times; every other backend reads the sha
 - `POST /favourites/merge` — bulk-save a batch of venue ids (used once, right after login, to carry over guest saves)
 
 ### Heatmap — `/heatmap`
-- `GET /heatmap/image.png` — the pre-rendered crowd heatmap overlay
+- `GET /heatmap/image.png` — the pre-rendered crowd heatmap overlay: a transparent image with a glow around every Moderate-or-busier mall and station
 - `GET /heatmap/bounds` — the geographic box that image is rendered against
 
 ### Directions — `/directions`
