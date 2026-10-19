@@ -1,5 +1,6 @@
 import { haversineKm } from "./distance";
-import { MALLS, MallEntry } from "../data/malls";
+import { MALLS } from "../data/malls";
+import { STATIONS } from "../data/stations";
 
 // How wide a venue's colour reach is on the heatmap - not a fixed number
 // for every venue, since a fixed radius either leaves huge grey gaps
@@ -13,20 +14,22 @@ import { MALLS, MallEntry } from "../data/malls";
 // kilometres away, and two venues right next to each other don't get an
 // almost-zero radius.
 const NEIGHBOURS_TO_AVERAGE = 3;
-const MIN_RADIUS_M = 300;
-const MAX_RADIUS_M = 2500;
 
-function computeHeatmapRadiiM(malls: MallEntry[]): Map<string, number> {
+function computeHeatmapRadiiM(
+  places: { id: string; lat: number; lng: number }[],
+  minRadiusM: number,
+  maxRadiusM: number
+): Map<string, number> {
   const radii = new Map<string, number>();
-  for (const mall of malls) {
-    const nearestDistancesM = malls
+  for (const mall of places) {
+    const nearestDistancesM = places
       .filter((other) => other.id !== mall.id)
       .map((other) => haversineKm(mall.lat, mall.lng, other.lat, other.lng) * 1000)
       .sort((a, b) => a - b)
       .slice(0, NEIGHBOURS_TO_AVERAGE);
 
     const avgM = nearestDistancesM.reduce((sum, d) => sum + d, 0) / nearestDistancesM.length;
-    const clampedM = Math.min(MAX_RADIUS_M, Math.max(MIN_RADIUS_M, avgM));
+    const clampedM = Math.min(maxRadiusM, Math.max(minRadiusM, avgM));
     radii.set(mall.id, Math.round(clampedM));
   }
   return radii;
@@ -35,7 +38,12 @@ function computeHeatmapRadiiM(malls: MallEntry[]): Map<string, number> {
 // Computed once at module load - mall positions are static (only change
 // when malls.ts is regenerated), so there's no reason to redo this
 // O(n^2) distance calculation on every request.
-export const HEATMAP_RADII_M = computeHeatmapRadiiM(MALLS);
+export const HEATMAP_RADII_M = computeHeatmapRadiiM(MALLS, 300, 2500);
+
+// Stations get their own, tighter halos: they sit closer together than
+// malls, and their reading is platform crowding at that one spot, so a
+// smaller reach keeps them from washing over the malls' readings.
+export const STATION_HEATMAP_RADII_M = computeHeatmapRadiiM(STATIONS, 250, 800);
 
 // Fixed geographic extent the heatmap overlay image (heatmapImage.ts) is
 // rendered against, and the exact box the app places that image over via
