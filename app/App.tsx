@@ -8,6 +8,7 @@ import { ThemeProvider, useTheme } from "./src/theme/ThemeContext";
 import { AuthProvider } from "./src/context/AuthContext";
 import HomeScreen from "./src/screens/HomeScreen";
 import DetailScreen from "./src/screens/DetailScreen";
+import DirectionsScreen from "./src/screens/DirectionsScreen";
 import SettingsScreen from "./src/screens/SettingsScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -63,6 +64,8 @@ function Navigation() {
       <Stack.Navigator screenOptions={{ headerBackButtonDisplayMode: "minimal" }}>
         <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Detail" component={DetailScreen} options={{ title: "Venue" }} />
+        {/* Title is replaced with the destination's name once it loads. */}
+        <Stack.Screen name="Directions" component={DirectionsScreen} options={{ title: "Directions" }} />
         <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
       </Stack.Navigator>
     </NavigationContainer>
