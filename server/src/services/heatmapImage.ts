@@ -49,17 +49,22 @@ function colorForPercent(pct: number): [number, number, number] {
   return hexToRgb(COLOR_STOPS[COLOR_STOPS.length - 1].hex);
 }
 
+// Only crowds give off heat: Moderate and busier. A quiet or closed venue
+// draws nothing, so the colour on the map means "busy here" rather than
+// "a venue is here".
+const HEAT_LEVELS: Venue["crowdLevel"][] = ["Moderate", "High", "Very High"];
+
 // LTA only gives stations a level, not a percentage - so on the heatmap each
 // level is drawn at the middle of its colour band above, matching the
-// station's badge. (Their crowdPercent of 20/50/80 would draw High at 80,
-// the Very High red.) Used only for colour; never shown as a number.
+// station's badge. (Their crowdPercent of 50/80 would draw High at 80, the
+// Very High red.) Used only for colour; never shown as a number.
 const STATION_HEAT_PERCENT: Partial<Record<Venue["crowdLevel"], number>> = {
-  Low: 17,
   Moderate: 47,
   High: 70,
 };
 
 function heatPercent(v: Venue): number | undefined {
+  if (!HEAT_LEVELS.includes(v.crowdLevel)) return undefined;
   return v.category === "Transit" ? STATION_HEAT_PERCENT[v.crowdLevel] : v.crowdPercent;
 }
 
@@ -70,13 +75,14 @@ interface HeatPoint {
   rgb: [number, number, number];
 }
 
-// Malls and stations alike. A closed (or not-yet-scraped) venue has no real crowd reading right now -
+// Malls and stations alike, Moderate and busier only (see HEAT_LEVELS).
+// A closed (or not-yet-scraped) venue has no real crowd reading right now -
 // same reasoning as the client-side filter this replaces (VenueMap.native.tsx):
 // showing a blob for it would read as "some data, just quiet" when the
 // honest answer is "no signal," same as anywhere else with no venue nearby.
 function projectVenues(venues: Venue[]): HeatPoint[] {
   return venues
-    .filter((v) => v.heatmapRadiusM && heatPercent(v) !== undefined && v.crowdLevel !== "Closed" && v.crowdLevel !== "Unavailable")
+    .filter((v) => v.heatmapRadiusM && heatPercent(v) !== undefined)
     // Stations first, so the wider mall halos are drawn over them.
     .sort((a, b) => (a.category === b.category ? 0 : a.category === "Transit" ? -1 : 1))
     .map((v) => ({
@@ -117,9 +123,9 @@ export async function generateHeatmapPng(venues: Venue[]): Promise<Buffer> {
         canvas.height = height;
         const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
 
-        // Faint neutral wash over the whole map first - areas with no
-        // venue nearby read as "no signal" rather than bare map, same as
-        // the flat grey base circle this replaces.
+        // Faint neutral wash over the whole map first, so the overlay still
+        // reads as switched on where nothing is busy - quiet areas and
+        // areas with no venue nearby both show just this wash.
         ctx.fillStyle = baseFill;
         ctx.fillRect(0, 0, width, height);
 
