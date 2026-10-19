@@ -39,7 +39,8 @@ flowchart LR
 - **Live crowd levels** — MRT/LRT stations from LTA DataMall, malls from Google Popular Times, with each mall's typical week as an hourly chart.
 - **Nearby alternatives** — lower-crowd venues of the same type within 3km.
 - **Map and heatmap** — crowd-coloured pins, a rail-line layer, and an island-wide crowd heatmap overlay (iOS).
-- **Search** — find any tracked venue by name.
+- **Search** — find any tracked venue by name, address or postal code, forgiving small typos in names.
+- **English / 中文** — switch the whole app between English and Simplified Chinese in Settings.
 - **Accounts and favourites** — save venues on the device as a guest, or sign in to sync them across devices.
 - **In-app directions** — transit, walking, driving and cycling routes to a venue via OneMap, drawn on Crowdy's own map, with the live crowd level at each MRT/LRT station you board. *Implemented by Oscar.*
 
@@ -124,6 +125,10 @@ Only one machine scrapes Google Popular Times; every other backend reads the sha
 1. `cd app && npm install`
 2. `npx expo start` (or `npm run ios` / `npm run android` / `npm run web`)
 3. Scan the QR code with **Expo Go** (currently SDK 57) on the same Wi-Fi as the machine running the backend — the app resolves the backend's address automatically from Metro's own host, no manual config needed.
+
+### Running Tests
+- `cd server && npm test` — signup/login validation, favourites routes, nearby alternatives. Uses an in-memory fake database, so it never touches the real one.
+- `cd app && npm test` — venue search ranking and keeping guest saves when merging into an account fails.
 
 ## API Documentation
 

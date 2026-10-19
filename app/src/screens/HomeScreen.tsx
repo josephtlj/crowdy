@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import * as Location from "expo-location";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/types";
 import { Venue } from "../types/venue";
@@ -31,11 +32,13 @@ import {
   ApiError,
 } from "../services/api";
 import { haversineKm } from "../services/distance";
+import { venueSearchRank } from "../services/venueSearch";
 import { loadSavedVenueIds, persistSavedVenueIds } from "../services/savedVenues";
 import { VenueRow } from "../components/VenueRow";
 import { VenueMap } from "../components/VenueMap";
 import { TabBar, TabKey } from "../components/TabBar";
 import { useTheme } from "../theme/ThemeContext";
+import { useLanguage } from "../i18n/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 
 // Marina Bay, used only if the user denies location permission.
@@ -78,6 +81,7 @@ function isWithinRegion(venue: Venue, region: MapRegion): boolean {
 export default function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const { t } = useLanguage();
   const auth = useAuth();
   const [venues, setVenues] = useState<Venue[]>([]);
   const [railLines, setRailLines] = useState<RailLineSegment[]>([]);
@@ -123,18 +127,21 @@ export default function HomeScreen({ navigation }: Props) {
   // auth state changes, not just once on mount, so logging in immediately
   // swaps the source instead of showing stale local ids.
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
-  useEffect(() => {
-    if (auth.token) {
-      getFavourites(auth.token)
-        .then((ids) => setSavedIds(new Set(ids)))
-        .catch((err) => {
-          console.error("Failed to load favourites from account:", err);
-          handleAuthError(err);
-        });
-    } else {
-      loadSavedVenueIds().then(setSavedIds);
-    }
-  }, [auth.token, handleAuthError]);
+  // Reload when Home is shown again so a save on Detail updates this list.
+  useFocusEffect(
+    useCallback(() => {
+      if (auth.token) {
+        getFavourites(auth.token)
+          .then((ids) => setSavedIds(new Set(ids)))
+          .catch((err) => {
+            console.error("Failed to load favourites from account:", err);
+            handleAuthError(err);
+          });
+      } else {
+        loadSavedVenueIds().then(setSavedIds);
+      }
+    }, [auth.token, handleAuthError])
+  );
 
   // Depends on auth.token, so this reference does change on login/logout -
   // rare enough (not a per-render/per-poll thing) that it doesn't work
@@ -356,27 +363,18 @@ export default function HomeScreen({ navigation }: Props) {
     [visibleVenues, layers]
   );
 
-  // Searches the full known venue list (not just what's in the map's
-  // current viewport, unlike Areas) - purely client-side, matching by name
-  // against every venue Crowdy already has loaded, no new API involved.
-  // Matches that start with the query rank above ones that merely contain
-  // it, so searching "vivo" puts VivoCity itself before some
-  // Vivo-something-else it happens to also match.
+  // Name, address, and postal code, against venues already loaded.
   const searchResults = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
+    const query = searchQuery.trim();
     if (!query) return [];
     return venues
-      .filter((venue) => venue.name.toLowerCase().includes(query))
-      .map((venue) => ({
+      .map((venue) => ({ venue, rank: venueSearchRank(venue, query) }))
+      .filter((hit): hit is { venue: Venue; rank: number } => hit.rank !== null)
+      .sort((a, b) => a.rank - b.rank || a.venue.name.localeCompare(b.venue.name))
+      .map(({ venue }) => ({
         ...venue,
         distanceKm: userLocation ? haversineKm(userLocation.lat, userLocation.lng, venue.lat, venue.lng) : undefined,
-      }))
-      .sort((a, b) => {
-        const aStarts = a.name.toLowerCase().startsWith(query);
-        const bStarts = b.name.toLowerCase().startsWith(query);
-        if (aStarts !== bStarts) return aStarts ? -1 : 1;
-        return a.name.localeCompare(b.name);
-      });
+      }));
   }, [venues, searchQuery, userLocation]);
 
   const listData = activeTab === "saved" ? savedVenues : activeTab === "search" ? searchResults : layeredVenues;
@@ -463,7 +461,7 @@ export default function HomeScreen({ navigation }: Props) {
               style={[styles.searchInput, { color: colors.text }]}
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="Search venues by name"
+              placeholder={t("search.placeholder")}
               placeholderTextColor={colors.textMuted}
               autoCapitalize="none"
               autoCorrect={false}
@@ -500,14 +498,14 @@ export default function HomeScreen({ navigation }: Props) {
           ListEmptyComponent={
             <Text style={[styles.empty, { color: colors.textMuted }]}>
               {activeTab === "saved"
-                ? "No saved areas."
+                ? t("saved.empty")
                 : activeTab === "search"
                   ? searchQuery.trim()
-                    ? `No venues match "${searchQuery.trim()}".`
-                    : "Type a venue name to search."
+                    ? t("search.noMatch", { query: searchQuery.trim() })
+                    : t("search.typeToSearch")
                   : noLayersOn
-                    ? "Toggle on venue types to view crowds."
-                    : "No venues in view - pan or zoom out the map."}
+                    ? t("layers.none")
+                    : t("map.empty")}
             </Text>
           }
           renderItem={({ item }) => (

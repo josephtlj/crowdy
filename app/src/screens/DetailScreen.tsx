@@ -1,26 +1,94 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/types";
 import { Venue } from "../types/venue";
-import { getVenueById, getAlternatives, refreshPopularTimesForVenue } from "../services/api";
+import {
+  getVenueById,
+  getAlternatives,
+  refreshPopularTimesForVenue,
+  getFavourites,
+  saveFavourite,
+  unsaveFavourite,
+  ApiError,
+} from "../services/api";
+import { loadSavedVenueIds, persistSavedVenueIds } from "../services/savedVenues";
 import { CrowdBadge } from "../components/CrowdBadge";
 import { PopularTimesChart } from "../components/PopularTimesChart";
 import { VenueHours } from "../components/VenueHours";
 import { formatUpdatedAt } from "../services/updatedAt";
 import { useTheme } from "../theme/ThemeContext";
+import { useAuth } from "../context/AuthContext";
+import { useLanguage } from "../i18n/LanguageContext";
+import { sourceLabel } from "../i18n/strings";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Detail">;
 
 export default function DetailScreen({ route, navigation }: Props) {
   const { venueId } = route.params;
   const { colors } = useTheme();
+  const auth = useAuth();
+  const { t, language } = useLanguage();
   const [venue, setVenue] = useState<Venue | null>(null);
   const [alternatives, setAlternatives] = useState<Venue[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshingCrowd, setRefreshingCrowd] = useState(false);
   const [selectedHour, setSelectedHour] = useState(new Date().getHours());
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadSaved = auth.token
+      ? getFavourites(auth.token).then((ids) => ids.includes(venueId))
+      : loadSavedVenueIds().then((ids) => ids.has(venueId));
+    loadSaved
+      .then((isSaved) => {
+        if (!cancelled) setSaved(isSaved);
+      })
+      .catch((err) => {
+        console.error("Failed to load saved state:", err);
+        if (err instanceof ApiError && err.status === 401) auth.logout();
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [venueId, auth.token, auth.logout]);
+
+  const toggleSaved = useCallback(() => {
+    setSaved((current) => {
+      const next = !current;
+      if (auth.token) {
+        const sync = next ? saveFavourite(auth.token, venueId) : unsaveFavourite(auth.token, venueId);
+        sync.catch((err) => {
+          console.error("Failed to sync favourite to account:", err);
+          if (err instanceof ApiError && err.status === 401) auth.logout();
+        });
+      } else {
+        loadSavedVenueIds().then((ids) => {
+          if (next) ids.add(venueId);
+          else ids.delete(venueId);
+          return persistSavedVenueIds(ids);
+        });
+      }
+      return next;
+    });
+  }, [auth, venueId]);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity
+          onPress={toggleSaved}
+          hitSlop={10}
+          style={styles.headerSave}
+          accessibilityLabel={saved ? t("detail.unsave") : t("detail.save")}
+        >
+          <Ionicons name={saved ? "heart" : "heart-outline"} size={22} color={saved ? colors.accent : colors.text} />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, toggleSaved, saved, colors.accent, colors.text, t]);
 
   useEffect(() => {
     (async () => {
@@ -64,7 +132,7 @@ export default function DetailScreen({ route, navigation }: Props) {
   if (!venue) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <Text style={{ color: colors.text }}>Venue not found.</Text>
+        <Text style={{ color: colors.text }}>{t("detail.notFound")}</Text>
       </View>
     );
   }
@@ -91,18 +159,23 @@ export default function DetailScreen({ route, navigation }: Props) {
             "Unavailable" means no reading exists yet - showing "0% of peak"
             next to it would misread as an actual low-crowd measurement. */}
         {venue.category !== "Transit" && venue.crowdLevel !== "Unavailable" && (
-          <Text style={[styles.percent, { color: colors.text }]}>{venue.crowdPercent}% of peak</Text>
+          <Text style={[styles.percent, { color: colors.text }]}>
+            {t("detail.percentOfPeak", { percent: venue.crowdPercent })}
+          </Text>
         )}
       </View>
 
       <View style={styles.updatedRow}>
         <Text style={[styles.updated, { color: colors.textMuted }]}>
-          Updated {formatUpdatedAt(venue.lastUpdated)} · source: {venue.source}
+          {t("detail.updated", {
+            time: formatUpdatedAt(venue.lastUpdated, language),
+            source: sourceLabel(venue.source, language),
+          })}
         </Text>
         {refreshingCrowd && (
           <>
             <ActivityIndicator size="small" style={styles.updatedSpinner} />
-            <Text style={[styles.updated, { color: colors.textMuted }]}>Refreshing…</Text>
+            <Text style={[styles.updated, { color: colors.textMuted }]}>{t("detail.refreshing")}</Text>
           </>
         )}
       </View>
@@ -112,7 +185,7 @@ export default function DetailScreen({ route, navigation }: Props) {
         onPress={() => navigation.navigate("Directions", { venueId: venue.id })}
       >
         <Ionicons name="navigate" size={17} color="#FFFFFF" />
-        <Text style={styles.directionsLabel}>Directions</Text>
+        <Text style={styles.directionsLabel}>{t("detail.directions")}</Text>
       </TouchableOpacity>
 
       {/* Transit already has real, official LTA crowd data - this is only
@@ -123,7 +196,7 @@ export default function DetailScreen({ route, navigation }: Props) {
       {venue.category !== "Transit" && (
         <View style={styles.section}>
           {venue.hours && <VenueHours hours={venue.hours} />}
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Typical Crowd Levels</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t("detail.typical")}</Text>
           {venue.hourly && venue.hourly.length > 0 ? (
             <PopularTimesChart
               hourly={venue.hourly}
@@ -132,7 +205,7 @@ export default function DetailScreen({ route, navigation }: Props) {
             />
           ) : (
             <Text style={[styles.meta, { color: colors.textMuted }]}>
-              No crowd data available yet for this venue.
+              {t("detail.noCrowd")}
             </Text>
           )}
         </View>
@@ -140,10 +213,10 @@ export default function DetailScreen({ route, navigation }: Props) {
 
       {venue.carparks && venue.carparks.length > 0 && (
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Parking availability</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t("detail.parking")}</Text>
           {venue.carparks.map((cp) => (
             <Text key={cp.label} style={[styles.meta, { color: colors.textMuted }]}>
-              {cp.label}: {cp.availableLots} lots available
+              {t("detail.lots", { label: cp.label, count: cp.availableLots })}
             </Text>
           ))}
         </View>
@@ -152,7 +225,7 @@ export default function DetailScreen({ route, navigation }: Props) {
       {alternatives.length > 0 && (
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Alternatives nearby
+            {t("detail.alternatives")}
           </Text>
           {alternatives.map((alt) => (
             <TouchableOpacity
@@ -163,7 +236,7 @@ export default function DetailScreen({ route, navigation }: Props) {
               <View style={styles.rowText}>
                 <Text style={[styles.altName, { color: colors.text }]}>{alt.name}</Text>
                 <Text style={[styles.meta, { color: colors.textMuted }]}>
-                  {alt.distanceKm?.toFixed(1)} km away
+                  {t("detail.kmAway", { distance: alt.distanceKm?.toFixed(1) ?? "" })}
                 </Text>
               </View>
               <CrowdBadge level={alt.crowdLevel} />
@@ -180,6 +253,9 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16 },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
+  // iOS draws the round button around header items itself - any margin
+  // here pushes the icon off-centre inside it.
+  headerSave: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
   name: { fontSize: 22, fontWeight: "700" },
   address: { fontSize: 14, marginTop: 4 },
   crowdRow: { flexDirection: "row", alignItems: "center", marginTop: 16, gap: 10 },

@@ -15,6 +15,8 @@ import { LayerState, isVenueInLayers } from "../types/layers";
 import { StationDot } from "./StationDot";
 import { PIN_COLORS } from "./pinColors";
 import { useTheme } from "../theme/ThemeContext";
+import { useLanguage } from "../i18n/LanguageContext";
+import { StringKey } from "../i18n/strings";
 import { DARK_MAP_STYLE } from "../theme/darkMapStyle";
 import { getHeatmapBounds, getHeatmapImageUrl, HeatmapBounds } from "../services/api";
 
@@ -37,9 +39,9 @@ interface Props {
   onRegionChange: (region: MapRegion) => void;
 }
 
-const LAYER_TOGGLES: { key: keyof LayerState; label: string; color: string }[] = [
-  { key: "transit", label: "Transit", color: PIN_COLORS.Transit },
-  { key: "venue", label: "Venue", color: PIN_COLORS.Venue },
+const LAYER_TOGGLES: { key: keyof LayerState; label: StringKey; color: string }[] = [
+  { key: "transit", label: "category.Transit", color: PIN_COLORS.Transit },
+  { key: "venue", label: "category.Venue", color: PIN_COLORS.Venue },
 ];
 
 // Metro picks this file automatically on iOS/Android (see VenueMap.web.tsx
@@ -56,6 +58,7 @@ export function VenueMap({
   onRegionChange,
 }: Props) {
   const { mode, colors } = useTheme();
+  const { t } = useLanguage();
   const mapRef = useRef<MapView>(null);
   // Tracks the map's own last known zoom level so centring (on a selected
   // venue, or on recentring) can keep whatever zoom the User was already
@@ -157,10 +160,7 @@ export function VenueMap({
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert(
-          "Location access needed",
-          "Enable location access for Crowdy in Settings to recentre the map."
-        );
+        Alert.alert(t("map.locationNeededTitle"), t("map.locationNeededBody"));
         return;
       }
       const position = await Location.getCurrentPositionAsync({});
@@ -181,7 +181,7 @@ export function VenueMap({
       // an alert instead of silently doing nothing, since this one's a
       // direct response to the User tapping the button.
       console.error("Failed to get current location for recentring:", err);
-      Alert.alert("Location unavailable", "Couldn't get your current location. Try again in a moment.");
+      Alert.alert(t("map.locationUnavailableTitle"), t("map.locationUnavailableBody"));
     } finally {
       setRecentring(false);
     }
@@ -284,10 +284,10 @@ export function VenueMap({
                 { backgroundColor: active ? color : mode === "dark" ? "#000000" : "#FFFFFF" },
               ]}
               onPress={() => onToggleLayer(key)}
-              accessibilityLabel={`Toggle ${label} layer`}
+              accessibilityLabel={t("map.toggleLayer", { label: t(label) })}
             >
               <Text style={[styles.layerButtonText, { color: active ? "#FFFFFF" : colors.accent }]}>
-                {label}
+                {t(label)}
               </Text>
             </TouchableOpacity>
           );
@@ -301,7 +301,7 @@ export function VenueMap({
             { backgroundColor: showHeatmap ? colors.accent : mode === "dark" ? "#000000" : "#FFFFFF" },
           ]}
           onPress={() => setShowHeatmap((prev) => !prev)}
-          accessibilityLabel="Toggle crowd heatmap"
+          accessibilityLabel={t("map.toggleHeatmap")}
         >
           <Ionicons
             name={showHeatmap ? "flame" : "flame-outline"}
@@ -318,7 +318,7 @@ export function VenueMap({
         ]}
         onPress={handleRecentre}
         disabled={recentring}
-        accessibilityLabel="Recentre map on my location"
+        accessibilityLabel={t("map.recentre")}
       >
         <Text style={[styles.recentreIcon, { color: colors.accent }]}>⌖</Text>
       </TouchableOpacity>

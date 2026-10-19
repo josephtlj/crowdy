@@ -3,6 +3,8 @@ import { Alert } from "react-native";
 import * as api from "../services/api";
 import { loadSession, storeSession, clearSession } from "../services/sessionStorage";
 import { loadSavedVenueIds, persistSavedVenueIds } from "../services/savedVenues";
+import { mergeGuestSavesIntoAccount } from "../services/mergeGuestSaves";
+import { useLanguage } from "../i18n/LanguageContext";
 
 interface AuthContextValue {
   // undefined while the stored session is still being read on boot - lets
@@ -23,6 +25,7 @@ function errorMessage(err: unknown): string {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { t } = useLanguage();
   const [accountId, setAccountId] = useState<number | null>(null);
   const [username, setUsername] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -47,20 +50,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // multiple accounts) would see venues neither of them actually saved
   // themselves appear in their account.
   //
-  // Now: only prompt when there's actually something to ask about, and
-  // resolve the local guest list one way or the other regardless of the
-  // choice - accepted (merged in) or declined (discarded) - so it can
-  // never be re-offered to a different account later. Blocks completing
-  // login/signup until answered, which is fine here since the caller's
-  // own submit button already shows a spinner for the duration.
+  // "Add to My Saved" clears the phone list only after the server merge succeeds.
+  // "Don't Add" still discards the guest list.
   function promptToMergeLocalSaves(token: string, localIds: string[]): Promise<void> {
     return new Promise((resolve) => {
       Alert.alert(
-        "Saved venues on this device",
-        `This device has ${localIds.length} venue${localIds.length === 1 ? "" : "s"} saved without an account. Add them to your saved list?`,
+        t("auth.savedTitle"),
+        t("auth.savedBody", { count: localIds.length }),
         [
           {
-            text: "Don't Add",
+            text: t("auth.dontAdd"),
             style: "cancel",
             onPress: async () => {
               await persistSavedVenueIds(new Set());
@@ -68,12 +67,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             },
           },
           {
-            text: "Add to My Saved",
+            text: t("auth.add"),
             onPress: async () => {
-              await api.mergeFavourites(token, localIds).catch((err) => {
-                console.error("Failed to merge local favourites into account:", err);
-              });
-              await persistSavedVenueIds(new Set());
+              const result = await mergeGuestSavesIntoAccount(
+                token,
+                localIds,
+                api.mergeFavourites,
+                persistSavedVenueIds
+              );
+              if (!result.ok) {
+                console.error("Failed to merge local favourites into account:", result.error);
+                Alert.alert(t("auth.mergeFailedTitle"), t("auth.mergeFailedBody"));
+              }
               resolve();
             },
           },
@@ -126,7 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setToken(null);
       },
     }),
-    [accountId, username, token, loading]
+    [accountId, username, token, loading, t]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

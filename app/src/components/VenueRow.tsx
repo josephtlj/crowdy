@@ -7,6 +7,8 @@ import { VenueCategory, CrowdLevel } from "../types/venue";
 import { ThemeColors } from "../theme/ThemeContext";
 import { getTodayStatus, OpenHoursEntry } from "../services/hours";
 import { formatUpdatedAt } from "../services/updatedAt";
+import { useLanguage } from "../i18n/LanguageContext";
+import { formatHoursDetail, StringKey } from "../i18n/strings";
 
 interface Props {
   id: string;
@@ -54,7 +56,9 @@ function VenueRowBase({
   onSeeDetails,
   onToggleSaved,
 }: Props) {
+  const { t, language } = useLanguage();
   const transitStatus = category === "Transit" && hours ? getTodayStatus(hours) : null;
+  const categoryLabel = t(`category.${category}` as StringKey);
 
   return (
     <View
@@ -84,8 +88,10 @@ function VenueRowBase({
           <View style={styles.rowText}>
             <Text style={[styles.name, { color: colors.text }]}>{name}</Text>
             <Text style={[styles.meta, { color: colors.textMuted }]}>
-              {category} ·{" "}
-              {distanceKm !== undefined ? `${distanceKm.toFixed(1)}km away from you` : "Distance unavailable - enable location"}
+              {categoryLabel} ·{" "}
+              {distanceKm !== undefined
+                ? t("row.kmAway", { distance: distanceKm.toFixed(1) })
+                : t("row.noDistance")}
             </Text>
           </View>
           <CrowdBadge level={crowdLevel} />
@@ -109,19 +115,22 @@ function VenueRowBase({
                 the category label (already on the badge above).
                 "Unavailable" means no reading exists yet - "0% of peak"
                 would misread as an actual low-crowd measurement. */}
-            {category !== "Transit" && crowdLevel !== "Unavailable" && `${crowdPercent}% of peak · `}
+            {category !== "Transit" && crowdLevel !== "Unavailable" && `${t("row.percentOfPeak", { percent: crowdPercent })} · `}
             {/* Real first/last train times where known (see
                 stationHours.ts) - a station missing from that data (a
                 small handful of LRT loop stations it isn't covered for)
                 just shows nothing extra here rather than a guess. */}
-            {transitStatus && `${transitStatus.open ? "Operating" : "Closed"}${transitStatus.detail ? ` · ${transitStatus.detail}` : ""} · `}
-            updated {formatUpdatedAt(lastUpdated)}
+            {transitStatus &&
+              `${transitStatus.open ? t("row.operating") : t("hours.closed")}${
+                transitStatus.detail ? ` · ${formatHoursDetail(transitStatus.detail, language)}` : ""
+              } · `}
+            {t("row.updated", { time: formatUpdatedAt(lastUpdated, language) })}
           </Text>
           {/* Transit stations are fixed destinations, not interchangeable
               like malls/attractions - no "alternative" makes sense. */}
           {category !== "Transit" && (
             <TouchableOpacity style={styles.previewButton} onPress={() => onSeeDetails(id)}>
-              <Text style={styles.previewButtonText}>See more details &rsaquo;</Text>
+              <Text style={styles.previewButtonText}>{t("row.seeDetails")}</Text>
             </TouchableOpacity>
           )}
         </View>

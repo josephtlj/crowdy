@@ -2,14 +2,16 @@ import React from "react";
 import { View, TouchableOpacity, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../theme/ThemeContext";
+import { useLanguage } from "../i18n/LanguageContext";
+import { StringKey } from "../i18n/strings";
 
 export type TabKey = "areas" | "saved" | "search" | "settings";
 
-const TABS: { key: TabKey; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { key: "areas", label: "Areas", icon: "navigate-outline" },
-  { key: "saved", label: "Saved", icon: "heart-outline" },
-  { key: "search", label: "Search", icon: "search-outline" },
-  { key: "settings", label: "Settings", icon: "settings-outline" },
+const TABS: { key: TabKey; label: StringKey; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { key: "areas", label: "tab.areas", icon: "navigate-outline" },
+  { key: "saved", label: "tab.saved", icon: "heart-outline" },
+  { key: "search", label: "tab.search", icon: "search-outline" },
+  { key: "settings", label: "tab.settings", icon: "settings-outline" },
 ];
 
 interface Props {
@@ -19,6 +21,7 @@ interface Props {
 
 export function TabBar({ active, onPress }: Props) {
   const { colors } = useTheme();
+  const { t } = useLanguage();
   return (
     <View style={[styles.bar, { borderBottomColor: colors.border }]}>
       {TABS.map((tab) => {
@@ -31,7 +34,7 @@ export function TabBar({ active, onPress }: Props) {
               color={isActive ? colors.accent : colors.textMuted}
             />
             <Text style={[styles.label, { color: isActive ? colors.accent : colors.textMuted }]}>
-              {tab.label}
+              {t(tab.label)}
             </Text>
             {isActive && <View style={[styles.underline, { backgroundColor: colors.accent }]} />}
           </TouchableOpacity>
