@@ -6,6 +6,7 @@ import type { Browser } from "puppeteer";
 import { CrowdLevel } from "../types/venue";
 import { loadStoredEntries, storeEntry, StoredEntry } from "./popularTimesStore";
 import { chromePath, googleProfileDir, isScrapingEnabled } from "./googleProfile";
+import { isOpenAt } from "./openingHours";
 
 puppeteerExtra.use(StealthPlugin());
 
@@ -247,6 +248,9 @@ function mapCrowdLevel(percent: number): CrowdLevel {
 // the current hour within it. A day with no pattern at all (venue closed
 // that whole day - zero bars) or no entry for this specific hour both mean
 // closed right now, same as before - a real result, not a scrape failure.
+// So does the venue's own opening hours saying it's shut: Google's chart
+// often has a 0% bar for the closing hour itself (10pm for a mall that
+// closes at 10pm), which on its own read as "Low" next to "Hours: Closed".
 function currentReading(result: PopularTimesResult): CurrentReading {
   const now = new Date();
   const todayPattern = result.weekly.find((d) => d.day === now.getDay());
@@ -256,7 +260,7 @@ function currentReading(result: PopularTimesResult): CurrentReading {
   // have no `hours` field - defaulting to empty rather than crashing, same
   // tolerance as any other pre-migration cache entry in this file.
   const hours = result.hours ?? [];
-  if (!entry) return { crowdPercent: 0, crowdLevel: "Closed", hourly, hours };
+  if (!entry || isOpenAt(hours, now) === false) return { crowdPercent: 0, crowdLevel: "Closed", hourly, hours };
   return { crowdPercent: entry.percent, crowdLevel: mapCrowdLevel(entry.percent), hourly, hours };
 }
 
