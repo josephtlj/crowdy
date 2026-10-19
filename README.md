@@ -21,19 +21,27 @@ flowchart LR
     GPT[Google Popular Times]
     SG[sgtrainstatus.com]
     OM[OneMap]
-    BE["Backend — Express\n/venues /lines /auth /favourites /heatmap"]
+    BE["Backend — Express\n/venues /lines /auth /favourites /heatmap /directions"]
     APP[App — Expo]
     DB[("MySQL\naccounts, favourites,\nshared Popular Times cache")]
 
     LTA -- "live, real-time" --> BE
     GPT -- "weekly per mall, paced" --> BE
     SG -. "one-off, compiled\nto static data" .-> BE
-    OM -. "build-time only" .-> BE
+    OM -- "routing (live),\ngeocoding (build-time)" --> BE
     BE <-- "REST API" --> APP
     BE <--> DB
 ```
 
 *(Dashed arrows = one-off/build-time only, not fetched while the app is running.)*
+
+### Features
+- **Live crowd levels** — MRT/LRT stations from LTA DataMall, malls from Google Popular Times, with each mall's typical week as an hourly chart.
+- **Nearby alternatives** — lower-crowd venues of the same type within 3km.
+- **Map and heatmap** — crowd-coloured pins, a rail-line layer, and an island-wide crowd heatmap overlay (iOS).
+- **Search** — find any tracked venue by name.
+- **Accounts and favourites** — save venues on the device as a guest, or sign in to sync them across devices.
+- **In-app directions** — transit, walking, driving and cycling routes to a venue via OneMap, drawn on Crowdy's own map, with the live crowd level at each MRT/LRT station you board. *Implemented by Oscar.*
 
 ## Tech Stack
 
@@ -184,7 +192,7 @@ crowdy/
 │   │   ├── components/      # Map, venue rows, crowd badge, tab bar, charts
 │   │   ├── context/         # AuthContext
 │   │   ├── navigation/      # React Navigation route types
-│   │   ├── screens/         # Home, Detail, Settings
+│   │   ├── screens/         # Home, Detail, Directions, Settings
 │   │   ├── services/        # api.ts (the only file that talks to the backend), local storage, distance/hours helpers
 │   │   ├── theme/           # Light/dark theme + dark map style
 │   │   └── types/           # Shared types (Venue, MapRegion, RailLineSegment, LayerState)
@@ -196,7 +204,7 @@ crowdy/
 │   │   ├── data/            # Known venue data (malls, stations, rail lines) + venue aggregation
 │   │   ├── middleware/       # requireAuth
 │   │   ├── routes/          # One router per resource
-│   │   ├── services/        # One module per external concern (LTA, carparks, Popular Times, heatmap image, auth, db, alternatives, distance)
+│   │   ├── services/        # One module per external concern (LTA, carparks, Popular Times, OneMap routing, heatmap image, auth, db, alternatives, distance)
 │   │   └── types/           # Venue type (kept manually in sync with app/src/types/venue.ts)
 │   ├── scripts/             # One-off build-time scripts (mall geocoding, station hours, DB schema init)
 │   ├── certs/               # Aiven CA certificate (safe to commit - verifies server identity only, grants no access)
