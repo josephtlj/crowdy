@@ -88,7 +88,7 @@ export default function DetailScreen({ route, navigation }: Props) {
         </TouchableOpacity>
       ),
     });
-  }, [navigation, toggleSaved, saved, colors.accent, colors.text]);
+  }, [navigation, toggleSaved, saved, colors.accent, colors.text, t]);
 
   useEffect(() => {
     (async () => {
@@ -253,7 +253,9 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16 },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
-  headerSave: { marginRight: 16 },
+  // iOS draws the round button around header items itself - any margin
+  // here pushes the icon off-centre inside it.
+  headerSave: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
   name: { fontSize: 22, fontWeight: "700" },
   address: { fontSize: 14, marginTop: 4 },
   crowdRow: { flexDirection: "row", alignItems: "center", marginTop: 16, gap: 10 },

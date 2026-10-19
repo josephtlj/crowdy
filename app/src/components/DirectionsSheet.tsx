@@ -17,6 +17,7 @@ import { CROWD_COLORS, crowdKey } from "./CrowdBadge";
 import { useTheme } from "../theme/ThemeContext";
 import { useLanguage } from "../i18n/LanguageContext";
 import { StringKey } from "../i18n/strings";
+import { translateInstruction } from "../i18n/routeInstructions";
 
 type Translate = (key: StringKey, vars?: Record<string, string | number>) => string;
 
@@ -280,7 +281,7 @@ interface StepRowProps {
 }
 
 function StepRow({ step, isLast, textColor, mutedColor, borderColor, surfaceAltColor }: StepRowProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const accent = step.lineColor ?? mutedColor;
 
   return (
@@ -306,7 +307,9 @@ function StepRow({ step, isLast, textColor, mutedColor, borderColor, surfaceAltC
           </Text>
         </View>
 
-        <Text style={[styles.stepInstruction, { color: textColor }]}>{step.instruction}</Text>
+        <Text style={[styles.stepInstruction, { color: textColor }]}>
+          {translateInstruction(step.instruction, language)}
+        </Text>
 
         <View style={styles.stepMetaRow}>
           {step.stopCount !== undefined && step.mode !== "WALK" && (
