@@ -21,19 +21,27 @@ flowchart LR
     GPT[Google Popular Times]
     SG[sgtrainstatus.com]
     OM[OneMap]
-    BE["Backend — Express\n/venues /lines /auth /favourites /heatmap"]
+    BE["Backend — Express\n/venues /lines /auth /favourites /heatmap /directions"]
     APP[App — Expo]
     DB[("MySQL\naccounts, favourites,\nshared Popular Times cache")]
 
     LTA -- "live, real-time" --> BE
     GPT -- "weekly per mall, paced" --> BE
     SG -. "one-off, compiled\nto static data" .-> BE
-    OM -. "build-time only" .-> BE
+    OM -- "routing (live),\ngeocoding (build-time)" --> BE
     BE <-- "REST API" --> APP
     BE <--> DB
 ```
 
 *(Dashed arrows = one-off/build-time only, not fetched while the app is running.)*
+
+### Features
+- **Live crowd levels** — MRT/LRT stations from LTA DataMall, malls from Google Popular Times, with each mall's typical week as an hourly chart.
+- **Nearby alternatives** — lower-crowd venues of the same type within 3km.
+- **Map and heatmap** — crowd-coloured pins, a rail-line layer, and an island-wide crowd heatmap overlay (iOS).
+- **Search** — find any tracked venue by name.
+- **Accounts and favourites** — save venues on the device as a guest, or sign in to sync them across devices.
+- **In-app directions** — transit, walking, driving and cycling routes to a venue via OneMap, drawn on Crowdy's own map, with the live crowd level at each MRT/LRT station you board. *Implemented by Oscar.*
 
 ## Tech Stack
 
@@ -56,7 +64,7 @@ flowchart LR
 ## Architecture & Design Patterns
 
 ### Backend Architecture
-1. **Resource-oriented routing** — one router per resource (`/venues`, `/lines`, `/auth`, `/favourites`, `/heatmap`), each owning only its own resource's endpoints.
+1. **Resource-oriented routing** — one router per resource (`/venues`, `/lines`, `/auth`, `/favourites`, `/heatmap`, `/directions`), each owning only its own resource's endpoints.
 2. **Middleware for cross-cutting concerns** — `requireAuth` verifies the bearer token once and attaches the account id (via `res.locals`, not a global type augmentation) before any protected route body runs; `cors()` and `express.json()` are applied globally.
 3. **Stateless authentication** — JWT bearer tokens (30-day expiry), not server-side sessions. Every request carries everything needed to authenticate it, so the backend holds no per-user connection state.
 4. **Service-layer separation** — each external concern (LTA, carpark lots, Google Popular Times, the heatmap image, alternatives, distance math, auth, the DB pool) lives in its own file under `services/`. Simple resource CRUD (accounts, favourites) queries the database directly from its route; anything that talks to an external source or does real computation goes through a dedicated service instead.
@@ -102,8 +110,8 @@ Routes depend on service-layer functions (`getVenues()`, `refreshPopularTimesNow
    DB_PASSWORD=<db password>
    DB_SSL_CA_PATH=./certs/aiven-ca.pem   # required for the hosted (Aiven) database; omit for a local MySQL install
    JWT_SECRET=<any random string>
-   ONEMAP_EMAIL=<OneMap account email>      # for in-app directions
-   ONEMAP_PASSWORD=<OneMap account password>
+   ONEMAP_EMAIL=<your OneMap account email>       # free account at onemap.gov.sg, used for directions
+   ONEMAP_PASSWORD=<your OneMap account password>
    ```
 3. `npm run dev` — starts the backend at `http://localhost:4000`
 
@@ -142,6 +150,9 @@ Only one machine scrapes Google Popular Times; every other backend reads the sha
 - `GET /heatmap/image.png` — the pre-rendered crowd heatmap overlay
 - `GET /heatmap/bounds` — the geographic box that image is rendered against
 
+### Directions — `/directions`
+- `GET /directions?fromLat=&fromLng=&toId=&mode=` — one route from the user's position to a venue. `mode` is `transit` (default), `walk`, `drive` or `cycle`; one mode per request, since each is its own upstream lookup. Route geometry comes back already decoded, split into per-leg segments carrying their own colour, and every transit leg is annotated with the live crowd level at the station it boards at.
+
 ## External APIs & Services
 
 ### LTA DataMall
@@ -151,7 +162,11 @@ Official real-time MRT/LRT platform crowd density, and live carpark lot counts (
 No official API exists for this, so the backend drives a headless Chrome through the same flow a person browsing Google Maps would. Google only shows Popular Times to signed-in visitors, so it runs on a Chrome profile signed in to the project's Google account, on one machine only. It refreshes any mall whose pattern is over a week old, one mall about every minute, so all 104 take about two hours — a pattern is a typical week, so weekly is plenty, and the steady pace avoids bursts of traffic on the account. Opening a mall in the app also refreshes it if its pattern is due.
 
 ### OneMap
-Free government geocoding, used once at build time (`server/scripts/build-mall-list.ts`) to resolve mall coordinates — not called at runtime.
+Two separate uses of the same free government service:
+- **Geocoding** — used once at build time (`server/scripts/build-mall-list.ts`) to resolve mall coordinates. Unauthenticated, not called at runtime.
+- **Routing** — called at runtime for the Directions feature (walking, driving, cycling and public transport, the last running on LTA's own timetable data). This one is authenticated: the backend exchanges `ONEMAP_EMAIL`/`ONEMAP_PASSWORD` for an access token, which it caches in memory and reuses until close to expiry rather than re-authenticating per request.
+
+Chosen over Google Directions because it needs no billing account or credit card, is authoritative for Singapore (the only country this app covers), and keeps the credential server-side either way.
 
 ### Aiven
 Hosts the MySQL database (free tier) for:
@@ -177,7 +192,7 @@ crowdy/
 │   │   ├── components/      # Map, venue rows, crowd badge, tab bar, charts
 │   │   ├── context/         # AuthContext
 │   │   ├── navigation/      # React Navigation route types
-│   │   ├── screens/         # Home, Detail, Settings
+│   │   ├── screens/         # Home, Detail, Directions, Settings
 │   │   ├── services/        # api.ts (the only file that talks to the backend), local storage, distance/hours helpers
 │   │   ├── theme/           # Light/dark theme + dark map style
 │   │   └── types/           # Shared types (Venue, MapRegion, RailLineSegment, LayerState)
@@ -189,7 +204,7 @@ crowdy/
 │   │   ├── data/            # Known venue data (malls, stations, rail lines) + venue aggregation
 │   │   ├── middleware/       # requireAuth
 │   │   ├── routes/          # One router per resource
-│   │   ├── services/        # One module per external concern (LTA, carparks, Popular Times, heatmap image, auth, db, alternatives, distance)
+│   │   ├── services/        # One module per external concern (LTA, carparks, Popular Times, OneMap routing, heatmap image, auth, db, alternatives, distance)
 │   │   └── types/           # Venue type (kept manually in sync with app/src/types/venue.ts)
 │   ├── scripts/             # One-off build-time scripts (mall geocoding, station hours, DB schema init)
 │   ├── certs/               # Aiven CA certificate (safe to commit - verifies server identity only, grants no access)

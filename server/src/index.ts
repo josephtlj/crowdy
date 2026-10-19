@@ -7,6 +7,7 @@ import { linesRouter } from "./routes/lines";
 import { authRouter } from "./routes/auth";
 import { favouritesRouter } from "./routes/favourites";
 import { heatmapRouter } from "./routes/heatmap";
+import { directionsRouter } from "./routes/directions";
 import { startPopularTimesScheduler } from "./services/popularTimesScheduler";
 import { closeBrowser } from "./services/popularTimes";
 import { pool } from "./services/db";
@@ -20,6 +21,7 @@ app.use("/lines", linesRouter);
 app.use("/auth", authRouter);
 app.use("/favourites", favouritesRouter);
 app.use("/heatmap", heatmapRouter);
+app.use("/directions", directionsRouter);
 
 startPopularTimesScheduler();
 

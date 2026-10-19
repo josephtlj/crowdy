@@ -2,12 +2,23 @@ import { Platform } from "react-native";
 import Constants from "expo-constants";
 import { Venue } from "../types/venue";
 import { RailLineSegment } from "../types/railLine";
+import { Route, TravelMode } from "../types/directions";
 
 // Every screen talks to the app through this file only - screens never
 // change when the data source does. On a physical device/simulator, "localhost"
 // means the phone itself, not this laptop, so we read the LAN IP Metro is
 // already using to reach the phone and reuse it for the backend's port too.
+//
+// EXPO_PUBLIC_API_BASE_URL overrides all of that. Set it in app/.env (or the
+// build environment) and the whole app points at a hosted backend instead of
+// whichever laptop is running `npm run dev` - one value to change when the
+// server moves off local development, with no feature code touched. Left
+// unset, the LAN behaviour below is unchanged, so local dev needs no config
+// at all.
 function resolveApiBaseUrl(): string {
+  const configured = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+  if (configured) return configured.replace(/\/$/, "");
+
   if (Platform.OS === "web") return "http://localhost:4000";
   const host = Constants.expoConfig?.hostUri?.split(":")[0];
   return host ? `http://${host}:4000` : "http://localhost:4000";
@@ -117,6 +128,19 @@ export async function refreshPopularTimesForVenue(venueId: string): Promise<Popu
   } catch {
     return null;
   }
+}
+
+// One mode at a time, fetched as the User switches tabs on the Directions
+// screen - each mode is its own OneMap lookup server-side, so requesting
+// all four upfront would pay for three journeys nobody asked to see.
+export function getDirections(
+  from: { lat: number; lng: number },
+  venueId: string,
+  mode: TravelMode
+): Promise<Route> {
+  return getJson<Route>(
+    `/directions?fromLat=${from.lat}&fromLng=${from.lng}&toId=${encodeURIComponent(venueId)}&mode=${mode}`
+  );
 }
 
 export interface AuthSession {
