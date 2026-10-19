@@ -39,8 +39,8 @@ flowchart LR
 - **Live crowd levels** — MRT/LRT stations from LTA DataMall, malls from Google Popular Times, with each mall's typical week as an hourly chart.
 - **Nearby alternatives** — lower-crowd venues of the same type within 3km.
 - **Map and heatmap** — crowd-coloured pins, a rail-line layer, and an island-wide crowd heatmap overlay (iOS).
-- **Search** — find any tracked venue by name, address or postal code, forgiving small typos in names.
-- **English / 中文** — switch the whole app between English and Simplified Chinese in Settings.
+- **Search** — find any tracked venue by name, address or postal code, forgiving small typos in names. *Address, postal code and typo search implemented by Yikai.*
+- **English / 中文** — switch the whole app between English and Simplified Chinese in Settings. *Implemented by Yikai.*
 - **Accounts and favourites** — save venues on the device as a guest, or sign in to sync them across devices.
 - **In-app directions** — transit, walking, driving and cycling routes to a venue via OneMap, drawn on Crowdy's own map, with the live crowd level at each MRT/LRT station you board. *Implemented by Oscar.*
 
