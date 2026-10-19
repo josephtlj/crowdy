@@ -32,6 +32,16 @@ test("a single letter does not match the word singapore in an address", () => {
   assert.equal(venueSearchRank(ion, "s"), null);
 });
 
+test("a query only matches at the start of a word", () => {
+  const bugis = { name: "Bugis Junction", address: "200 VICTORIA STREET BUGIS JUNCTION SINGAPORE 188021", postalCode: "188021" };
+  const station = { name: "Tiong Bahru MRT", address: "Tiong Bahru MRT Station", postalCode: undefined };
+  assert.equal(venueSearchRank(bugis, "ion"), null);
+  assert.equal(venueSearchRank(station, "ion"), null);
+  assert.equal(venueSearchRank(station, "s"), null);
+  assert.equal(venueSearchRank(ion, "ion"), 2);
+  assert.equal(venueSearchRank(bugis, "victoria st"), 4);
+});
+
 test("a one-digit postal typo is not a match", () => {
   const palais = {
     name: "Palais Renaissance",

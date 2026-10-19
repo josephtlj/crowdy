@@ -24,11 +24,14 @@ function normalize(raw: string): string {
     .join(" ");
 }
 
-// "SINGAPORE" is on almost every mall address, so a query of "s" would match all of them.
+// "SINGAPORE" is on almost every mall address and "Station" on every station's,
+// so a query of "s" would match all of them.
+const GENERIC_ADDRESS_WORDS = new Set(["singapore", "station"]);
+
 function addressForMatch(address: string): string {
   return address
     .split(" ")
-    .filter((token) => token !== "singapore")
+    .filter((token) => !GENERIC_ADDRESS_WORDS.has(token))
     .join(" ");
 }
 
@@ -57,8 +60,10 @@ function editDistanceAtMostOne(a: string, b: string): boolean {
   return prev[b.length] <= 1;
 }
 
-function tokenHits(queryToken: string, haystack: string, haystackTokens: string[]): "exact" | "prefix" | "fuzzy" | null {
-  if (haystack.includes(queryToken)) return haystackTokens.includes(queryToken) ? "exact" : "prefix";
+// Matches whole words or the start of a word only - matching anywhere inside
+// a word made "ion" hit every "Station" and "Junction".
+function tokenHits(queryToken: string, haystackTokens: string[]): "exact" | "prefix" | "fuzzy" | null {
+  if (haystackTokens.includes(queryToken)) return "exact";
   let fuzzy = false;
   for (const token of haystackTokens) {
     if (token.startsWith(queryToken)) return "prefix";
@@ -106,13 +111,13 @@ export function venueSearchRank(venue: Pick<Venue, "name" | "address" | "postalC
   let usedFuzzy = false;
 
   for (const token of queryTokens) {
-    const nameHit = tokenHits(token, name, nameTokens);
+    const nameHit = tokenHits(token, nameTokens);
     if (nameHit === "exact" || nameHit === "prefix") continue;
     if (nameHit === "fuzzy") {
       usedFuzzy = true;
       continue;
     }
-    const addressHit = tokenHits(token, address, addressTokens);
+    const addressHit = tokenHits(token, addressTokens);
     if (addressHit === "exact" || addressHit === "prefix") {
       usedAddress = true;
       continue;
