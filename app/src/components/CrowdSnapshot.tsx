@@ -101,12 +101,25 @@ export function CrowdSnapshot({ venues, userLocation, colors, onOpenVenue }: Pro
 
       {around && (
         <View style={[styles.around, { borderTopColor: colors.border }]}>
-          <View style={[styles.dot, { backgroundColor: around.level ? CROWD_COLORS[around.level] : CROWD_COLORS.Closed }]} />
-          <Text style={[styles.aroundText, { color: colors.text }]}>
-            {around.level
-              ? t("snapshot.around", { km: AROUND_KM, level: t(crowdKey(around.level)), count: around.count })
-              : t("snapshot.aroundClosed", { km: AROUND_KM })}
-          </Text>
+          <View
+            style={[
+              styles.dot,
+              styles.aroundDot,
+              { backgroundColor: around.level ? CROWD_COLORS[around.level] : CROWD_COLORS.Closed },
+            ]}
+          />
+          <View style={styles.aroundBody}>
+            <Text style={[styles.aroundText, { color: colors.text }]}>
+              {around.level
+                ? t("snapshot.around", { km: AROUND_KM, level: t(crowdKey(around.level)) })
+                : t("snapshot.aroundClosed", { km: AROUND_KM })}
+            </Text>
+            {around.level && (
+              <Text style={[styles.aroundBasis, { color: colors.textMuted }]}>
+                {t("snapshot.aroundBasis", { count: around.count })}
+              </Text>
+            )}
+          </View>
         </View>
       )}
 
@@ -156,12 +169,16 @@ const styles = StyleSheet.create({
   statText: { fontSize: 13, fontVariant: ["tabular-nums"] },
   around: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 8,
     paddingVertical: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  aroundText: { fontSize: 14, flex: 1 },
+  // Lines the dot up with the first line of text, not the middle of both.
+  aroundDot: { marginTop: 5 },
+  aroundBody: { flex: 1 },
+  aroundText: { fontSize: 14 },
+  aroundBasis: { fontSize: 12, marginTop: 2 },
   pick: {
     flexDirection: "row",
     alignItems: "center",
