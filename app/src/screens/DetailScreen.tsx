@@ -1,26 +1,91 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/types";
 import { Venue } from "../types/venue";
-import { getVenueById, getAlternatives, refreshPopularTimesForVenue } from "../services/api";
+import {
+  getVenueById,
+  getAlternatives,
+  refreshPopularTimesForVenue,
+  getFavourites,
+  saveFavourite,
+  unsaveFavourite,
+  ApiError,
+} from "../services/api";
+import { loadSavedVenueIds, persistSavedVenueIds } from "../services/savedVenues";
 import { CrowdBadge } from "../components/CrowdBadge";
 import { PopularTimesChart } from "../components/PopularTimesChart";
 import { VenueHours } from "../components/VenueHours";
 import { formatUpdatedAt } from "../services/updatedAt";
 import { useTheme } from "../theme/ThemeContext";
+import { useAuth } from "../context/AuthContext";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Detail">;
 
 export default function DetailScreen({ route, navigation }: Props) {
   const { venueId } = route.params;
   const { colors } = useTheme();
+  const auth = useAuth();
   const [venue, setVenue] = useState<Venue | null>(null);
   const [alternatives, setAlternatives] = useState<Venue[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshingCrowd, setRefreshingCrowd] = useState(false);
   const [selectedHour, setSelectedHour] = useState(new Date().getHours());
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadSaved = auth.token
+      ? getFavourites(auth.token).then((ids) => ids.includes(venueId))
+      : loadSavedVenueIds().then((ids) => ids.has(venueId));
+    loadSaved
+      .then((isSaved) => {
+        if (!cancelled) setSaved(isSaved);
+      })
+      .catch((err) => {
+        console.error("Failed to load saved state:", err);
+        if (err instanceof ApiError && err.status === 401) auth.logout();
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [venueId, auth.token, auth.logout]);
+
+  const toggleSaved = useCallback(() => {
+    setSaved((current) => {
+      const next = !current;
+      if (auth.token) {
+        const sync = next ? saveFavourite(auth.token, venueId) : unsaveFavourite(auth.token, venueId);
+        sync.catch((err) => {
+          console.error("Failed to sync favourite to account:", err);
+          if (err instanceof ApiError && err.status === 401) auth.logout();
+        });
+      } else {
+        loadSavedVenueIds().then((ids) => {
+          if (next) ids.add(venueId);
+          else ids.delete(venueId);
+          return persistSavedVenueIds(ids);
+        });
+      }
+      return next;
+    });
+  }, [auth, venueId]);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity
+          onPress={toggleSaved}
+          hitSlop={10}
+          style={styles.headerSave}
+          accessibilityLabel={saved ? "Remove from saved" : "Save venue"}
+        >
+          <Ionicons name={saved ? "heart" : "heart-outline"} size={22} color={saved ? colors.accent : colors.text} />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, toggleSaved, saved, colors.accent, colors.text]);
 
   useEffect(() => {
     (async () => {
@@ -180,6 +245,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16 },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
+  headerSave: { marginRight: 16 },
   name: { fontSize: 22, fontWeight: "700" },
   address: { fontSize: 14, marginTop: 4 },
   crowdRow: { flexDirection: "row", alignItems: "center", marginTop: 16, gap: 10 },

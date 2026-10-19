@@ -8,6 +8,12 @@ import { spreadOverlappingVenues } from "../services/declutter";
 import { getLatestPopularTimes } from "../services/popularTimes";
 import { HEATMAP_RADII_M } from "../services/heatmap";
 
+// Last 6-digit group, so a street number earlier in the address is ignored.
+export function postalCodeFromAddress(address: string): string | undefined {
+  const matches = address.match(/\b\d{6}\b/g);
+  return matches?.[matches.length - 1];
+}
+
 // Popular Times is the sole source for every mall in MALLS - no carpark
 // fallback. There used to be one (a carpark-lots estimate for any venue
 // without a fresh Popular Times reading), but it silently produced
@@ -47,6 +53,7 @@ async function getMallVenues(): Promise<Venue[]> {
       name: mall.name,
       category: "Venue",
       address: mall.address,
+      postalCode: postalCodeFromAddress(mall.address),
       lat: mall.lat,
       lng: mall.lng,
       crowdPercent: popularTimes?.crowdPercent ?? 0,
@@ -158,6 +165,7 @@ async function getTransportVenues(): Promise<Venue[]> {
       name: station.name,
       category: "Transit",
       address: station.address,
+      postalCode: postalCodeFromAddress(station.address),
       lat: station.lat,
       lng: station.lng,
       crowdPercent: operating === false ? 0 : reading?.crowdPercent ?? 0,
