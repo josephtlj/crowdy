@@ -7,6 +7,12 @@ const MAX_ALTERNATIVES = 3;
 // "Smart Neighborhood Alternatives": same category, less crowded, nearby.
 // Pure function over data already in memory - no external calls, so this
 // stays cheap even as the venue list grows.
+/**
+ * Finds quieter venues of the same type near a venue.
+ * @param venue - the venue being viewed
+ * @param allVenues - every venue
+ * @returns up to three closest venues within 3 km that are less crowded
+ */
 export function findAlternatives(venue: Venue, allVenues: Venue[]): Venue[] {
   return allVenues
     .filter((candidate) => candidate.id !== venue.id)

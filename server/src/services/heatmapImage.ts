@@ -107,6 +107,12 @@ function projectVenues(venues: Venue[]): HeatPoint[] {
 // Times scraping (see getBrowser in popularTimes.ts) rather than launching
 // a second browser, or adding a native canvas dependency (node-canvas,
 // which needs a compiled cairo build) just for this one image.
+/**
+ * Renders the crowd heatmap image: a transparent PNG with a glow around every
+ * Moderate-or-busier mall and station.
+ * @param venues - the current venue list
+ * @returns the PNG image data
+ */
 export async function generateHeatmapPng(venues: Venue[]): Promise<Buffer> {
   const points = projectVenues(venues);
   const browser = await getBrowser();
@@ -153,6 +159,11 @@ export async function generateHeatmapPng(venues: Venue[]): Promise<Buffer> {
 const CACHE_TTL_MS = 5 * 60 * 1000;
 let cached: { buffer: Buffer; timestamp: number } | null = null;
 
+/**
+ * Returns the heatmap image, re-rendering it at most every 5 minutes.
+ * @param venues - the current venue list
+ * @returns the PNG image data
+ */
 export async function getHeatmapPng(venues: Venue[]): Promise<Buffer> {
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) return cached.buffer;
   const buffer = await generateHeatmapPng(venues);

@@ -49,6 +49,15 @@ const CYCLE_COLOR = "#00897B";
 // while staying well inside the gap to the next station.
 const STATION_MATCH_KM = 0.4;
 
+/**
+ * Plans a route with OneMap and converts it into Crowdy's step-by-step format, adding
+ * the live crowd level at each MRT/LRT station boarded.
+ * @param from - the start point (the user's location)
+ * @param to - the destination venue's location
+ * @param mode - transit, walk, drive or cycle
+ * @param venues - the current venue list, used to look up station crowd levels
+ * @returns the route, or null if OneMap finds none
+ */
 export async function getRoute(
   from: LatLng,
   to: LatLng,

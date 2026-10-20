@@ -51,6 +51,10 @@ async function fetchToken(): Promise<{ token: string; expiresAtMs: number }> {
   return { token: payload.access_token, expiresAtMs };
 }
 
+/**
+ * Returns a OneMap access token, reusing the cached one until it is about to expire.
+ * @returns a valid access token
+ */
 export async function getOneMapToken(): Promise<string> {
   if (cached && Date.now() < cached.expiresAtMs - EXPIRY_MARGIN_MS) {
     return cached.token;
@@ -63,6 +67,12 @@ export async function getOneMapToken(): Promise<string> {
 // lifecycle lives in exactly one place. A 401 means the cached token was
 // rejected despite looking unexpired (revoked, or the account's password
 // changed), so it's dropped and the call retried once with a fresh one.
+/**
+ * Makes an authenticated GET request to OneMap, retrying once with a new token if
+ * the current one is rejected.
+ * @param url - the full OneMap API URL
+ * @returns the parsed JSON response
+ */
 export async function oneMapGet<T>(url: string): Promise<T> {
   const attempt = async (token: string) =>
     fetch(url, {

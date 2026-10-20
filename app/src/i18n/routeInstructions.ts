@@ -98,6 +98,13 @@ function toChinese(instruction: string): string | null {
   }
 }
 
+/**
+ * Translates a OneMap turn-by-turn step into the chosen language. Street and
+ * station names stay in English; unrecognised steps are left unchanged.
+ * @param instruction - the English step from OneMap
+ * @param language - en or zh
+ * @returns the step in the chosen language
+ */
 export function translateInstruction(instruction: string, language: Language): string {
   if (language === "en") return instruction;
   return toChinese(instruction.trim()) ?? instruction;

@@ -22,6 +22,10 @@ interface LtaCrowdRecord {
 // One request per line - LTA's API is scoped per train line, not global.
 // Interchange stations show up once per line they sit on; last write wins,
 // which is fine since we only display one reading per physical station anyway.
+/**
+ * Fetches live MRT/LRT platform crowd levels from LTA DataMall.
+ * @returns each station's crowd record, keyed by station code
+ */
 export async function fetchStationCrowdLevels(): Promise<Map<string, LtaCrowdRecord>> {
   const accountKey = process.env.LTA_ACCOUNT_KEY;
   if (!accountKey) {
@@ -51,6 +55,11 @@ export async function fetchStationCrowdLevels(): Promise<Map<string, LtaCrowdRec
   return results;
 }
 
+/**
+ * Converts an LTA crowd code (l, m, h) into Crowdy's crowd level.
+ * @param code - the code LTA reports for a station
+ * @returns the matching crowd level, or null if LTA has no reading
+ */
 export function mapCrowdCode(
   code: LtaCrowdRecord["CrowdLevel"]
 ): { crowdLevel: "Low" | "Moderate" | "High"; crowdPercent: number } | null {

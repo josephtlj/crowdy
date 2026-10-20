@@ -9,6 +9,12 @@ import { Venue } from "../types/venue";
 const GRID_SIZE_DEG = 0.0004; // ~44m near the equator
 const SPREAD_RADIUS_DEG = 0.00035; // ~39m
 
+/**
+ * Moves venues that share almost the same coordinates slightly apart so their map
+ * pins don't sit on top of each other.
+ * @param venues - the venues to place
+ * @returns the venues, with overlapping ones nudged apart
+ */
 export function spreadOverlappingVenues(venues: Venue[]): Venue[] {
   const groups = new Map<string, Venue[]>();
   for (const venue of venues) {
