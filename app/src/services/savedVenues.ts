@@ -7,6 +7,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 // login rather than discarding it.
 const STORAGE_KEY = "crowdy:savedVenueIds";
 
+/**
+ * Loads the venues saved on this device (used when not signed in).
+ * @returns the saved venue ids
+ */
 export async function loadSavedVenueIds(): Promise<Set<string>> {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
@@ -19,6 +23,10 @@ export async function loadSavedVenueIds(): Promise<Set<string>> {
   }
 }
 
+/**
+ * Saves the list of venues saved on this device.
+ * @param ids - the saved venue ids
+ */
 export async function persistSavedVenueIds(ids: Set<string>): Promise<void> {
   try {
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(ids)));

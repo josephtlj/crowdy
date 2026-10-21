@@ -13,6 +13,10 @@ interface LanguageContextValue {
 
 const LanguageContext = createContext<LanguageContextValue | undefined>(undefined);
 
+/**
+ * Provides the chosen language (English or Chinese) to every screen and remembers
+ * the choice on the device.
+ */
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<Language>("en");
 
@@ -45,6 +49,10 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 }
 
+/**
+ * Returns the current language and the function that looks up translated text.
+ * @returns the language context; must be used inside LanguageProvider
+ */
 export function useLanguage(): LanguageContextValue {
   const ctx = useContext(LanguageContext);
   if (!ctx) throw new Error("useLanguage must be used within a LanguageProvider");

@@ -24,6 +24,10 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Something went wrong - try again.";
 }
 
+/**
+ * Provides the sign-in state to every screen and handles login, sign-up and logout,
+ * including the prompt to add guest saves to the account.
+ */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { t } = useLanguage();
   const [accountId, setAccountId] = useState<number | null>(null);
@@ -137,6 +141,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+/**
+ * Returns the current sign-in state and actions (login, signup, logout).
+ * @returns the auth context; must be used inside AuthProvider
+ */
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within an AuthProvider");

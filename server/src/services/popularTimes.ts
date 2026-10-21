@@ -125,6 +125,11 @@ const SYNC_TIMEOUT_MS = 15 * 1000;
 // more recently than this machine, and uploads anything this machine has
 // that's newer than the shared copy. The upload half is also what moves an
 // existing local cache into the database the first time this runs.
+/**
+ * Two-way sync of the Popular Times cache with the shared database: pulls patterns
+ * newer than this machine's and uploads this machine's newer ones.
+ * @returns resolves once the sync finishes (does nothing if the database is unreachable)
+ */
 export async function syncPopularTimesWithDb(): Promise<void> {
   const stored = await Promise.race([
     loadStoredEntries(),
@@ -213,6 +218,10 @@ async function getFromSlot(slot: BrowserSlot): Promise<Browser> {
 
 // Exported so heatmapImage.ts can render its canvas in a shared Chromium
 // instead of launching a new one per render.
+/**
+ * Returns the shared headless browser used to render the heatmap image.
+ * @returns a running browser instance, relaunched if the previous one disconnected
+ */
 export function getBrowser(): Promise<Browser> {
   return getFromSlot(plainBrowser);
 }
@@ -225,6 +234,10 @@ function getMapsBrowser(): Promise<Browser> {
 // launched Chromium process (and whatever page it's mid-navigation on)
 // running past the Node process itself, which is part of why the server
 // sometimes doesn't fully let go of its port right away.
+/**
+ * Closes every headless browser this server started. Called on shutdown.
+ * @returns resolves once the browsers are closed
+ */
 export async function closeBrowser(): Promise<void> {
   await Promise.all(
     [plainBrowser, mapsBrowser].map(async (slot) => {
@@ -508,6 +521,13 @@ export const PATTERN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 // `scrapedAt` says when the returned reading was actually gathered - now, or
 // the cached reading's original time if no scrape ran or it failed - so a
 // fallback is never passed off as a fresh check.
+/**
+ * Returns a venue's current Popular Times reading, scraping it first if this backend
+ * scrapes and the venue's pattern is over a week old.
+ * @param venueId - the venue's id
+ * @param venueName - the venue's name, used to find it on Google Maps
+ * @returns the reading and when it was scraped, or null if the venue has never been scraped
+ */
 export async function refreshPopularTimesNow(
   venueId: string,
   venueName: string
@@ -541,6 +561,11 @@ export async function refreshPopularTimesNow(
 // nothing whenever scraping can't run (e.g. Google serving signed-out
 // visitors a limited view of Maps without the chart). `scrapedAt` lets the
 // app say how old the pattern is instead of passing it off as fresh.
+/**
+ * Returns the most recent Popular Times reading for a venue, however old.
+ * @param venueId - the venue's id
+ * @returns the reading for the current hour and its scrape time, or null if never scraped
+ */
 export function getLatestPopularTimes(venueId: string): (CurrentReading & { scrapedAt: number }) | null {
   const cached = cache.get(venueId);
   if (!cached?.result) return null;
@@ -560,6 +585,11 @@ function lastTouched(venueId: string): number {
 
 // Venues whose pattern is at least PATTERN_MAX_AGE_MS old (or never
 // scraped), stalest first.
+/**
+ * Picks the venues whose Popular Times pattern is at least a week old, stalest first.
+ * @param venues - the venues to check
+ * @returns the venues due for a scrape, oldest pattern first
+ */
 export function venuesDueForScrape<T extends { id: string }>(venues: T[]): T[] {
   const now = Date.now();
   return venues
@@ -575,6 +605,12 @@ export function venuesDueForScrape<T extends { id: string }>(venues: T[]): T[] {
 // wipe every venue it touched to "Unavailable" even though a good pattern
 // was sitting right there. Only a venue with no prior cache entry at all
 // gets a null one recorded, so it at least resolves to "no data yet".
+/**
+ * Scrapes one venue's Popular Times from Google Maps and records the result.
+ * @param venue - the venue's id and name
+ * @returns "updated", "failed" (its last pattern is kept), or "limitedView" (Google is
+ *  serving the signed-out view, so the session needs signing in again)
+ */
 export async function scrapeVenue(venue: { id: string; name: string }): Promise<ScrapeOutcome> {
   lastAttemptAt.set(venue.id, Date.now());
   try {

@@ -63,6 +63,10 @@ function noteSuccess(): void {
   console.log("Popular Times: database reachable again, sharing the cache.");
 }
 
+/**
+ * Loads every Popular Times pattern from the shared database.
+ * @returns a map of venue id to stored pattern, or null if the database is unreachable
+ */
 export async function loadStoredEntries(): Promise<Map<string, StoredEntry> | null> {
   try {
     await ensureTable();
@@ -81,6 +85,12 @@ export async function loadStoredEntries(): Promise<Map<string, StoredEntry> | nu
 // scrape (null result) never replaces a good one. Without the second rule,
 // a teammate whose scrape of a venue failed would wipe the working data
 // someone else had just saved for it.
+/**
+ * Saves one venue's Popular Times pattern to the shared database, keeping whichever
+ * copy is newer and never replacing a good pattern with a failed scrape.
+ * @param venueId - the venue's id
+ * @param entry - the pattern and when it was scraped
+ */
 export async function storeEntry(venueId: string, entry: StoredEntry): Promise<void> {
   try {
     await ensureTable();

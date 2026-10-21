@@ -76,6 +76,10 @@ async function runRefreshPass(): Promise<void> {
 // megabyte, so every 15 minutes is cheap.
 const DB_SYNC_INTERVAL_MS = 15 * 60 * 1000;
 
+/**
+ * Starts background Popular Times work: syncs with the shared database every 15 minutes
+ * and, on the scraping backend, refreshes week-old patterns about one venue a minute.
+ */
 export function startPopularTimesScheduler(): void {
   void syncPopularTimesWithDb();
   setInterval(() => void syncPopularTimesWithDb(), DB_SYNC_INTERVAL_MS);

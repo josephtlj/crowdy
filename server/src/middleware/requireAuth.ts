@@ -5,6 +5,10 @@ import { verifyToken } from "../services/auth";
 // account id to res.locals for downstream routes - res.locals rather than
 // augmenting Express's Request type, so no global type declaration needed
 // for one small addition.
+/**
+ * Express middleware that only lets requests with a valid sign-in token through.
+ * Rejects others with HTTP 401, and passes the account id on to the route.
+ */
 export const requireAuth: RequestHandler = (req, res, next) => {
   const header = req.headers.authorization;
   const token = header?.startsWith("Bearer ") ? header.slice("Bearer ".length) : null;

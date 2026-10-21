@@ -25,6 +25,10 @@ interface Props {
 // Sits at the top of the Areas list so the app opens on something useful:
 // how busy the malls are right now, and the quietest open one nearby.
 // Built only from the venue list already loaded - no extra requests.
+/**
+ * The Right now card: how many malls are quiet, moderate, busy or closed, the crowd
+ * level near the user, and the quietest open mall nearby.
+ */
 export function CrowdSnapshot({ venues, userLocation, colors, onOpenVenue }: Props) {
   const { t } = useLanguage();
 

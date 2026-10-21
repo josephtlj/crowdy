@@ -13,6 +13,12 @@ function parseMinutes(s: string): number | null {
 // rules the app's hours line uses (app/src/services/hours.ts), so the crowd
 // badge and "Hours: Closed" can't disagree. null when there are no usable
 // hours, so the caller falls back to the Popular Times bars alone.
+/**
+ * Checks whether a venue is open at a given time, by its listed opening hours.
+ * @param hours - the venue's opening hours for each day
+ * @param at - the time to check
+ * @returns true or false, or null if the hours can't be read
+ */
 export function isOpenAt(hours: OpenHoursEntry[], at: Date): boolean | null {
   if (hours.length === 0) return null;
   const day = at.getDay();

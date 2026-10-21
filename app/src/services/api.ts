@@ -84,10 +84,21 @@ async function authedDelete(path: string, token: string): Promise<void> {
   }
 }
 
+/**
+ * Fetches every venue with its crowd level, sorted nearest first.
+ * @param userLat - the user's latitude
+ * @param userLng - the user's longitude
+ * @returns the venue list
+ */
 export async function getNearbyVenues(userLat: number, userLng: number): Promise<Venue[]> {
   return getJson<Venue[]>(`/venues?lat=${userLat}&lng=${userLng}`);
 }
 
+/**
+ * Fetches one venue's full detail.
+ * @param id - the venue's id
+ * @returns the venue, or undefined if it isn't found
+ */
 export async function getVenueById(id: string): Promise<Venue | undefined> {
   try {
     return await getJson<Venue>(`/venues/${id}`);
@@ -96,12 +107,21 @@ export async function getVenueById(id: string): Promise<Venue | undefined> {
   }
 }
 
+/**
+ * Fetches quieter venues of the same type nearby.
+ * @param venue - the venue being viewed
+ * @returns up to three alternatives
+ */
 export async function getAlternatives(venue: Venue): Promise<Venue[]> {
   return getJson<Venue[]>(`/venues/${venue.id}/alternatives`);
 }
 
 // Static rail alignment geometry - doesn't change per request, fetched once
 // alongside venues rather than re-fetched on every map interaction.
+/**
+ * Fetches the MRT/LRT line shapes drawn on the map.
+ * @returns the rail line segments
+ */
 export async function getRailLines(): Promise<RailLineSegment[]> {
   return getJson<RailLineSegment[]>("/lines");
 }
@@ -122,6 +142,11 @@ export interface PopularTimesRefresh {
 // never in bulk. Returns null on any failure (including the normal "no
 // Popular Times for this venue" case) since the caller only needs to know
 // whether a fresh reading is available.
+/**
+ * Asks the server for a venue's latest Popular Times reading.
+ * @param venueId - the venue's id
+ * @returns the reading and when it was scraped, or null if none is available
+ */
 export async function refreshPopularTimesForVenue(venueId: string): Promise<PopularTimesRefresh | null> {
   try {
     return await getJson<PopularTimesRefresh>(`/venues/${venueId}/popular-times`);
@@ -133,6 +158,13 @@ export async function refreshPopularTimesForVenue(venueId: string): Promise<Popu
 // One mode at a time, fetched as the User switches tabs on the Directions
 // screen - each mode is its own OneMap lookup server-side, so requesting
 // all four upfront would pay for three journeys nobody asked to see.
+/**
+ * Fetches a route from the user's location to a venue.
+ * @param from - the user's location
+ * @param venueId - the destination venue's id
+ * @param mode - transit, walk, drive or cycle
+ * @returns the route with its steps
+ */
 export function getDirections(
   from: { lat: number; lng: number },
   venueId: string,
@@ -148,22 +180,49 @@ export interface AuthSession {
   accountId: number;
 }
 
+/**
+ * Creates an account.
+ * @param username - 3-24 letters, numbers or underscores
+ * @param password - at least 8 characters
+ * @returns the new session (token and account id)
+ */
 export function signup(username: string, password: string): Promise<AuthSession> {
   return postJson<AuthSession>("/auth/signup", { username, password });
 }
 
+/**
+ * Signs in to an existing account.
+ * @param username - the account's username
+ * @param password - the account's password
+ * @returns the session (token and account id)
+ */
 export function login(username: string, password: string): Promise<AuthSession> {
   return postJson<AuthSession>("/auth/login", { username, password });
 }
 
+/**
+ * Fetches the signed-in user's saved venue ids.
+ * @param token - the session token
+ * @returns the saved venue ids
+ */
 export function getFavourites(token: string): Promise<string[]> {
   return authedGetJson<string[]>("/favourites", token);
 }
 
+/**
+ * Saves a venue to the signed-in user's account.
+ * @param token - the session token
+ * @param venueId - the venue to save
+ */
 export function saveFavourite(token: string, venueId: string): Promise<void> {
   return postJson("/favourites", { venueId }, token);
 }
 
+/**
+ * Removes a venue from the signed-in user's account.
+ * @param token - the session token
+ * @param venueId - the venue to remove
+ */
 export function unsaveFavourite(token: string, venueId: string): Promise<void> {
   return authedDelete(`/favourites/${venueId}`, token);
 }
@@ -171,6 +230,11 @@ export function unsaveFavourite(token: string, venueId: string): Promise<void> {
 // Called once right after login with whatever was saved locally as a
 // guest, so those saves carry over into the account instead of being
 // left behind on just this one device.
+/**
+ * Adds guest saves from this device to the signed-in user's account.
+ * @param token - the session token
+ * @param venueIds - the venue ids saved on this device
+ */
 export function mergeFavourites(token: string, venueIds: string[]): Promise<void> {
   return postJson("/favourites/merge", { venueIds }, token);
 }
@@ -186,6 +250,10 @@ export interface HeatmapBounds {
 // has to match precisely for the overlay image to land on the right spot,
 // so this is fetched from the server rather than hardcoding a second copy
 // of the same numbers on this side.
+/**
+ * Fetches the map area the heatmap image covers.
+ * @returns the image's south, west, north and east edges
+ */
 export function getHeatmapBounds(): Promise<HeatmapBounds> {
   return getJson<HeatmapBounds>("/heatmap/bounds");
 }
@@ -194,6 +262,10 @@ export function getHeatmapBounds(): Promise<HeatmapBounds> {
 // image prop, which loads it like any other image. The timestamp busts
 // React Native's own image cache so re-enabling the toggle after crowd data
 // has moved on actually shows a fresh image instead of a stale cached one.
+/**
+ * Returns the URL of the current heatmap image.
+ * @returns the image URL, with a timestamp so a fresh image is loaded
+ */
 export function getHeatmapImageUrl(): string {
   return `${API_BASE_URL}/heatmap/image.png?t=${Date.now()}`;
 }

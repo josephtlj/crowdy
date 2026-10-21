@@ -83,6 +83,12 @@ function tokenHits(queryToken: string, haystackTokens: string[]): "exact" | "pre
 // Lower rank is a stronger hit. null means no match.
 // 0 exact postal code, 1 postal prefix, 2 name prefix, 3 name tokens,
 // 4 address tokens, 5 a one-character typo in a word.
+/**
+ * Scores how well a venue matches a search by name, address or postal code.
+ * @param venue - the venue's name, address and postal code
+ * @param rawQuery - what the user typed
+ * @returns a rank (lower is a better match), or null if it doesn't match
+ */
 export function venueSearchRank(venue: Pick<Venue, "name" | "address" | "postalCode">, rawQuery: string): number | null {
   const query = rawQuery.trim().toLowerCase();
   if (!query) return null;

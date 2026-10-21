@@ -9,6 +9,11 @@ import { getLatestPopularTimes } from "../services/popularTimes";
 import { HEATMAP_RADII_M, STATION_HEATMAP_RADII_M } from "../services/heatmap";
 
 // Last 6-digit group, so a street number earlier in the address is ignored.
+/**
+ * Extracts the six-digit postal code from a venue address.
+ * @param address - the venue's full address
+ * @returns the postal code, or undefined if the address has none
+ */
 export function postalCodeFromAddress(address: string): string | undefined {
   const matches = address.match(/\b\d{6}\b/g);
   return matches?.[matches.length - 1];
@@ -203,6 +208,12 @@ async function getCachedMallVenues(): Promise<Venue[]> {
   return cachedMallVenues;
 }
 
+/**
+ * Returns every tracked venue - malls and MRT/LRT stations - with its current crowd level.
+ * Station readings come from LTA DataMall and mall readings from cached Google Popular
+ * Times patterns; if a source is unavailable, each venue keeps its last known data.
+ * @returns all venues, with overlapping map pins spread apart
+ */
 export async function getVenues(): Promise<Venue[]> {
   const [transportVenues, mallVenues] = await Promise.all([
     getTransportVenues(),
