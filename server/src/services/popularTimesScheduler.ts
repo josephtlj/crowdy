@@ -86,7 +86,8 @@ export function startPopularTimesScheduler(): void {
 
   if (!isScrapingEnabled()) {
     console.log(
-      "[popularTimesScheduler] Scraping is off on this backend (POPULAR_TIMES_SCRAPER isn't \"on\") - " +
+      "[popularTimesScheduler] Scraping is off on this backend (it needs POPULAR_TIMES_SCRAPER=on and a " +
+        "signed-in Google profile from npm run google-signin) - " +
         "using the shared Popular Times data."
     );
     return;

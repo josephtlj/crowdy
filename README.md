@@ -130,7 +130,7 @@ Routes depend on service-layer functions (`getVenues()`, `refreshPopularTimesNow
 3. `npm run dev` — starts the backend at `http://localhost:4000`
 
 Only one machine scrapes Google Popular Times; every other backend reads the shared copy from the database, so teammates need nothing extra. On the scraping machine:
-1. Add `POPULAR_TIMES_SCRAPER=on` to `server/.env`.
+1. Add `POPULAR_TIMES_SCRAPER=on` to `server/.env`. A backend only scrapes when it also has the signed-in profile from step 2, so the team can share one `.env`.
 2. With the backend stopped, run `npm run google-signin`, sign in to the project's Google account in the Chrome window that opens (keep the account in that profile when asked), then quit that window.
 3. Start the backend. The session is stored in `~/.crowdy/google-profile/`, outside the repo — never commit or share it. If the log says the session has expired, repeat step 2.
 
