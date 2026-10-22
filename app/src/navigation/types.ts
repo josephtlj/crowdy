@@ -3,4 +3,6 @@ export type RootStackParamList = {
   Detail: { venueId: string };
   Directions: { venueId: string };
   Settings: undefined;
+  Meetup: undefined;
+  Friends: undefined;
 };

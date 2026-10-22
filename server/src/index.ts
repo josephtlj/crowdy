@@ -8,6 +8,9 @@ import { authRouter } from "./routes/auth";
 import { favouritesRouter } from "./routes/favourites";
 import { heatmapRouter } from "./routes/heatmap";
 import { directionsRouter } from "./routes/directions";
+import { friendsRouter } from "./routes/friends";
+import { meetupRouter } from "./routes/meetup";
+import { ensureSocialTables } from "./services/socialSchema";
 import { startPopularTimesScheduler } from "./services/popularTimesScheduler";
 import { closeBrowser } from "./services/popularTimes";
 import { pool } from "./services/db";
@@ -22,6 +25,12 @@ app.use("/auth", authRouter);
 app.use("/favourites", favouritesRouter);
 app.use("/heatmap", heatmapRouter);
 app.use("/directions", directionsRouter);
+app.use("/friends", friendsRouter);
+app.use("/meetup", meetupRouter);
+
+// Friends and meetup tables; harmless if they already exist. A failure here
+// (e.g. the database asleep) only affects the friends feature.
+ensureSocialTables().catch((err) => console.error("Could not create the friends tables:", err));
 
 startPopularTimesScheduler();
 

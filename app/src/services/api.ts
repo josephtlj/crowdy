@@ -2,6 +2,7 @@ import { Platform } from "react-native";
 import Constants from "expo-constants";
 import { Venue } from "../types/venue";
 import { RailLineSegment } from "../types/railLine";
+import { FriendsOverview, MeetupPlan, MeetupPriority } from "../types/social";
 import { Route, TravelMode } from "../types/directions";
 
 // Every screen talks to the app through this file only - screens never
@@ -49,9 +50,9 @@ async function getJson<T>(path: string): Promise<T> {
 // string, since auth/favourites callers show this text directly to the
 // User. `token`, when given, is sent the same way requireAuth on the
 // server expects it.
-async function postJson<T>(path: string, body: unknown, token?: string): Promise<T> {
+async function postJson<T>(path: string, body: unknown, token?: string, method: "POST" | "PUT" = "POST"): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
+    method,
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -268,4 +269,68 @@ export function getHeatmapBounds(): Promise<HeatmapBounds> {
  */
 export function getHeatmapImageUrl(): string {
   return `${API_BASE_URL}/heatmap/image.png?t=${Date.now()}`;
+}
+
+/**
+ * Fetches every venue (malls and stations), unsorted.
+ * @returns the full venue list
+ */
+export function getAllVenues(): Promise<Venue[]> {
+  return getJson<Venue[]>("/venues");
+}
+
+/**
+ * Fetches the signed-in user's home station, friends and pending requests.
+ * @param token - the session token
+ * @returns friends (with their home stations) and requests in both directions
+ */
+export function getFriends(token: string): Promise<FriendsOverview> {
+  return authedGetJson<FriendsOverview>("/friends", token);
+}
+
+/**
+ * Sends a friend request by username. If they had already asked, it is accepted.
+ * @param token - the session token
+ * @param username - the other person's username
+ * @returns "pending" for a new request, or "accepted" if it completed a pair
+ */
+export function sendFriendRequest(token: string, username: string): Promise<{ status: "pending" | "accepted" }> {
+  return postJson("/friends/requests", { username }, token);
+}
+
+/**
+ * Accepts a friend request another account sent.
+ * @param token - the session token
+ * @param accountId - the account that sent the request
+ */
+export function acceptFriendRequest(token: string, accountId: number): Promise<void> {
+  return postJson(`/friends/requests/${accountId}/accept`, {}, token);
+}
+
+/**
+ * Removes a friend, declines their request, or cancels a sent request.
+ * @param token - the session token
+ * @param accountId - the other account
+ */
+export function removeFriend(token: string, accountId: number): Promise<void> {
+  return authedDelete(`/friends/${accountId}`, token);
+}
+
+/**
+ * Sets (or with null, clears) the station the signed-in user usually starts from.
+ * @param token - the session token
+ * @param stationId - a station id, or null to clear it
+ */
+export function setHomeStation(token: string, stationId: string | null): Promise<void> {
+  return postJson("/friends/home-station", { stationId }, token, "PUT");
+}
+
+/**
+ * Asks the server where a group should meet.
+ * @param stationIds - each person's starting station id (2-6)
+ * @param priority - "fair" (shortest longest trip), "fast" (shortest average) or "quiet" (least crowded)
+ * @returns up to three suggestions with everyone's travel times
+ */
+export function getMeetupSuggestions(stationIds: string[], priority: MeetupPriority): Promise<MeetupPlan> {
+  return postJson("/meetup", { stationIds, priority });
 }

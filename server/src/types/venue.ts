@@ -13,7 +13,7 @@ export interface Venue {
   lng: number;
   crowdPercent: number;
   crowdLevel: CrowdLevel;
-  source: "GooglePopularTimes" | "LTA" | "Mock";
+  source: "GooglePopularTimes" | "LTA";
   lastUpdated: string;
   distanceKm?: number;
   // Raw LTA carpark lot counts, shown as a bonus stat - not used to derive

@@ -5,6 +5,7 @@ import path from "node:path";
 process.loadEnvFile(path.join(__dirname, "..", ".env"));
 
 import { pool } from "../src/services/db";
+import { ensureSocialTables } from "../src/services/socialSchema";
 
 async function main() {
   await pool.query(`
@@ -27,7 +28,9 @@ async function main() {
     )
   `);
 
-  console.log("Schema ready: accounts, favourites.");
+  await ensureSocialTables();
+
+  console.log("Schema ready: accounts, favourites, friendships, home_stations.");
   await pool.end();
 }
 

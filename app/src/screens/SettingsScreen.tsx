@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { RootStackParamList } from "../navigation/types";
 import {
   View,
   Text,
@@ -18,7 +20,9 @@ import { Language } from "../i18n/strings";
 // process assigns one.
 const APP_VERSION = "1.0.0 (MVP)";
 
-export default function SettingsScreen() {
+type Props = NativeStackScreenProps<RootStackParamList, "Settings">;
+
+export default function SettingsScreen({ navigation }: Props) {
   const { mode, colors, toggleTheme } = useTheme();
   const { language, setLanguage, t, errorText } = useLanguage();
   const auth = useAuth();
@@ -93,7 +97,19 @@ export default function SettingsScreen() {
             <Text style={[styles.logoutText, { color: colors.accent }]}>{t("settings.logOut")}</Text>
           </TouchableOpacity>
         </View>
-      ) : (
+      ) : null}
+
+      {!auth.loading && auth.username ? (
+        <TouchableOpacity
+          style={[styles.row, styles.friendsRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          onPress={() => navigation.navigate("Friends")}
+        >
+          <Text style={[styles.rowLabel, { color: colors.text }]}>{t("settings.friends")}</Text>
+          <Text style={[styles.rowLabel, { color: colors.textMuted }]}>›</Text>
+        </TouchableOpacity>
+      ) : null}
+
+      {auth.loading || auth.username ? null : (
         <View style={[styles.accountCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <TextInput
             style={[styles.input, { color: colors.text, borderColor: colors.border }]}
@@ -173,6 +189,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   rowLabel: { fontSize: 15, fontWeight: "500" },
+  friendsRow: { marginTop: 10 },
   logoutButton: { alignSelf: "flex-start" },
   logoutText: { fontSize: 14, fontWeight: "600" },
   input: {

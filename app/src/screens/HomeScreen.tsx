@@ -272,6 +272,7 @@ export default function HomeScreen({ navigation }: Props) {
 
   const handleTabPress = (key: TabKey) => {
     if (key === "settings") return navigation.navigate("Settings");
+    if (key === "meetup") return navigation.navigate("Meetup");
     setActiveTab(key); // "areas", "saved", or "search"
   };
 

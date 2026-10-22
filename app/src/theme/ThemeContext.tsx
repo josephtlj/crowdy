@@ -1,4 +1,7 @@
-import React, { createContext, useContext, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const STORAGE_KEY = "crowdy:theme";
 
 export type ThemeMode = "light" | "dark";
 
@@ -40,17 +43,30 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
-// In-memory only for now - resets on app restart. Fine for demoing the
-// toggle; persisting the choice (e.g. AsyncStorage) is a small addition
-// later if wanted, not built now since it wasn't asked for.
+/**
+ * Provides the light/dark theme to every screen and remembers the choice on
+ * the device. Starts dark until the saved choice has been read.
+ */
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<ThemeMode>("dark");
+
+  useEffect(() => {
+    AsyncStorage.getItem(STORAGE_KEY)
+      .then((stored) => {
+        if (stored === "light" || stored === "dark") setMode(stored);
+      })
+      .catch(() => {});
+  }, []);
 
   const value = useMemo<ThemeContextValue>(
     () => ({
       mode,
       colors: mode === "dark" ? DARK : LIGHT,
-      toggleTheme: () => setMode((m) => (m === "dark" ? "light" : "dark")),
+      toggleTheme: () => {
+        const next = mode === "dark" ? "light" : "dark";
+        setMode(next);
+        AsyncStorage.setItem(STORAGE_KEY, next).catch((err) => console.error("Failed to store theme:", err));
+      },
     }),
     [mode]
   );

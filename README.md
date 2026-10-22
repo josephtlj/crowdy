@@ -13,7 +13,7 @@ NTU SC2006 Software Engineering.
 
 ## Overview
 
-Crowdy is a Singapore-only app for checking real-time crowd levels at MRT/LRT stations and shopping malls/attractions before heading there, with lower-crowd alternatives of the same type surfaced nearby when one exists. It's built as two independent pieces — an Expo/React Native app and a Node/Express backend.
+Crowdy is a Singapore-only app for checking real-time crowd levels at MRT/LRT stations and shopping malls/attractions before heading there, with lower-crowd alternatives of the same type surfaced nearby when one exists. Groups of friends can also ask it where to meet: it suggests malls that are fair to reach for everyone and not too crowded. It's built as two independent pieces — an Expo/React Native app and a Node/Express backend.
 
 ```mermaid
 flowchart LR
@@ -21,9 +21,9 @@ flowchart LR
     GPT[Google Popular Times]
     SG[sgtrainstatus.com]
     OM[OneMap]
-    BE["Backend — Express\n/venues /lines /auth /favourites /heatmap /directions"]
+    BE["Backend — Express\n/venues /lines /auth /favourites /heatmap\n/directions /friends /meetup"]
     APP[App — Expo]
-    DB[("MySQL\naccounts, favourites,\nshared Popular Times cache")]
+    DB[("MySQL\naccounts, favourites, friends,\nhome stations,\nshared Popular Times cache")]
 
     LTA -- "live, real-time" --> BE
     GPT -- "weekly per mall, paced" --> BE
@@ -44,6 +44,9 @@ flowchart LR
 - **English / 中文** — switch the whole app between English and Simplified Chinese in Settings. *Implemented by Yikai.*
 - **Accounts and favourites** — save venues on the device as a guest, or sign in to sync them across devices.
 - **In-app directions** — transit, walking, driving and cycling routes to a venue via OneMap, drawn on Crowdy's own map, with the live crowd level at each MRT/LRT station you board. *Implemented by Oscar.*
+- **Friends** — add friends by username, accept or decline requests, and set a home station. A friend's home station is only shared once both sides have accepted.
+- **Meetup planner** — pick 2–6 people (yourself, friends with a home station, or anyone by station), choose what matters most — *fairest trip* (no one travels much longer than the rest), *fastest overall* (lowest average trip) or *quietest* (least crowded mall within a reasonable trip) — and get the top 3 malls with each person's transit time and the mall's current crowd level.
+- **Light and dark mode** — follows the user's choice in Settings, remembered on the device along with the language.
 
 ## Tech Stack
 
@@ -66,12 +69,12 @@ flowchart LR
 ## Architecture & Design Patterns
 
 ### Backend Architecture
-1. **Resource-oriented routing** — one router per resource (`/venues`, `/lines`, `/auth`, `/favourites`, `/heatmap`, `/directions`), each owning only its own resource's endpoints.
-2. **Middleware for cross-cutting concerns** — `requireAuth` verifies the bearer token once and attaches the account id (via `res.locals`, not a global type augmentation) before any protected route body runs; `cors()` and `express.json()` are applied globally.
+1. **Resource-oriented routing** — one router per resource (`/venues`, `/lines`, `/auth`, `/favourites`, `/heatmap`, `/directions`, `/friends`, `/meetup`), each owning only its own resource's endpoints.
+2. **Middleware for cross-cutting concerns** — `requireAuth` verifies the bearer token once and attaches the account id (via `res.locals`, not a global type augmentation) before any protected route body runs; `rateLimit` caps how often one client can call login/sign-up, meetup searches and friend requests; `cors()` and `express.json()` are applied globally.
 3. **Stateless authentication** — JWT bearer tokens (30-day expiry), not server-side sessions. Every request carries everything needed to authenticate it, so the backend holds no per-user connection state.
-4. **Service-layer separation** — each external concern (LTA, carpark lots, Google Popular Times, the heatmap image, alternatives, distance math, auth, the DB pool) lives in its own file under `services/`. Simple resource CRUD (accounts, favourites) queries the database directly from its route; anything that talks to an external source or does real computation goes through a dedicated service instead.
+4. **Service-layer separation** — each external concern (LTA, carpark lots, Google Popular Times, the heatmap image, alternatives, distance math, auth, meetup ranking, the DB pool) lives in its own file under `services/`. Simple resource CRUD (accounts, favourites, friends) queries the database directly from its route; anything that talks to an external source or does real computation goes through a dedicated service instead.
 5. **Cache-with-TTL, repeated deliberately** — Popular Times, LTA carpark lots, and the rendered heatmap image are each cached with their own freshness window, matched to how often that specific source actually changes (5 minutes for LTA, a week for Popular Times) rather than one blanket policy.
-6. **Consistent error shape** — failures return `{ error: "..." }` with a standard HTTP status (400/401/404/409/500); the same generic message is used for both "wrong password" and "no such account" on login, so a failed attempt can't be used to enumerate registered usernames.
+6. **Consistent error shape** — failures return `{ error: "..." }` with a standard HTTP status (400/401/404/409/429/500/502); the same generic message is used for both "wrong password" and "no such account" on login, so a failed attempt can't be used to enumerate registered usernames.
 7. **Graceful shutdown** — `SIGINT`/`SIGTERM` close the HTTP server, the shared Puppeteer browser, and the DB pool, each bounded by its own timeout so one stuck step can't block the others or the process exit itself.
 
 ### Frontend Architecture
@@ -112,7 +115,7 @@ Routes depend on service-layer functions (`getVenues()`, `refreshPopularTimesNow
    DB_PASSWORD=<db password>
    DB_SSL_CA_PATH=./certs/aiven-ca.pem   # required for the hosted (Aiven) database; omit for a local MySQL install
    JWT_SECRET=<any random string>
-   ONEMAP_EMAIL=<your OneMap account email>       # free account at onemap.gov.sg, used for directions
+   ONEMAP_EMAIL=<your OneMap account email>       # free account at onemap.gov.sg, used for directions and meetup travel times (meetup falls back to estimates without it)
    ONEMAP_PASSWORD=<your OneMap account password>
    ```
 3. `npm run dev` — starts the backend at `http://localhost:4000`
@@ -128,12 +131,12 @@ Only one machine scrapes Google Popular Times; every other backend reads the sha
 3. Scan the QR code with **Expo Go** (currently SDK 57) on the same Wi-Fi as the machine running the backend — the app resolves the backend's address automatically from Metro's own host, no manual config needed.
 
 ### Running Tests
-- `cd server && npm test` — signup/login validation, favourites routes, nearby alternatives. Uses an in-memory fake database, so it never touches the real one.
+- `cd server && npm test` — signup/login validation, favourites and friends routes, nearby alternatives, meetup ranking for each priority, rate limiting. Uses an in-memory fake database, so it never touches the real one.
 - `cd app && npm test` — venue search ranking and keeping guest saves when merging into an account fails.
 
 ## API Documentation
 
-### Auth — `/auth`
+### Auth — `/auth` *(10 attempts per minute per client)*
 - `POST /auth/signup` — create an account (`username`, `password`), returns a session token
 - `POST /auth/login` — verify credentials, returns a session token
 
@@ -159,6 +162,16 @@ Only one machine scrapes Google Popular Times; every other backend reads the sha
 ### Directions — `/directions`
 - `GET /directions?fromLat=&fromLng=&toId=&mode=` — one route from the user's position to a venue. `mode` is `transit` (default), `walk`, `drive` or `cycle`; one mode per request, since each is its own upstream lookup. Route geometry comes back already decoded, split into per-leg segments carrying their own colour, and every transit leg is annotated with the live crowd level at the station it boards at.
 
+### Friends — `/friends` *(all require a bearer token)*
+- `GET /friends` — this account's home station, accepted friends (with their home stations), and pending requests sent and received
+- `POST /friends/requests` — send a request (`username`); if that person already sent you one, it is accepted instead. Limited to 20 per minute per client
+- `POST /friends/requests/:accountId/accept` — accept a request that account sent you
+- `DELETE /friends/:accountId` — remove a friend, decline their request, or cancel your own request
+- `PUT /friends/home-station` — set your home station (`stationId`), or clear it with `null`
+
+### Meetup — `/meetup` *(10 searches per minute per client)*
+- `POST /meetup` — `stationIds` (2–6 MRT/LRT station ids, one per person, repeats allowed) and `priority` (`fair` (default), `fast` or `quiet`). Shortlists malls by distance, looks up each person's transit time with OneMap (falling back to a marked estimate if a lookup fails), and returns the top 3 malls with every person's travel time and the mall's crowd level. Also says when every mall with crowd data is closed. No sign-in needed, so guests can use it too.
+
 ## External APIs & Services
 
 ### LTA DataMall
@@ -170,13 +183,14 @@ No official API exists for this, so the backend drives a headless Chrome through
 ### OneMap
 Two separate uses of the same free government service:
 - **Geocoding** — used once at build time (`server/scripts/build-mall-list.ts`) to resolve mall coordinates. Unauthenticated, not called at runtime.
-- **Routing** — called at runtime for the Directions feature (walking, driving, cycling and public transport, the last running on LTA's own timetable data). This one is authenticated: the backend exchanges `ONEMAP_EMAIL`/`ONEMAP_PASSWORD` for an access token, which it caches in memory and reuses until close to expiry rather than re-authenticating per request.
+- **Routing** — called at runtime for the Directions feature and the meetup planner (walking, driving, cycling and public transport, the last running on LTA's own timetable data). This one is authenticated: the backend exchanges `ONEMAP_EMAIL`/`ONEMAP_PASSWORD` for an access token, which it caches in memory and reuses until close to expiry rather than re-authenticating per request.
 
 Chosen over Google Directions because it needs no billing account or credit card, is authoritative for Singapore (the only country this app covers), and keeps the credential server-side either way.
 
 ### Aiven
 Hosts the MySQL database (free tier) for:
 - `accounts` and `favourites`
+- `friendships` (one row per request, `pending` or `accepted`) and `home_stations` (one per account) — created automatically on first run, along with the rest
 - `popular_times_cache` — a shared copy of the Popular Times cache, so the whole team's backends work from one set of scraped data instead of each scraping every venue separately. Each backend syncs with it on startup, every 15 minutes, and before each scraping session, and still keeps its own local copy, so the app keeps working from that copy if the database is unreachable. The table is created automatically on first run.
 
 Everything else lives in the backend's own cache files.
@@ -186,6 +200,9 @@ Everything else lives in the backend's own cache files.
 - JWT bearer-token authentication, verified on every protected route by the `requireAuth` middleware.
 - Every SQL query is parameterized (`mysql2` placeholders, no string-built queries anywhere) — no SQL injection surface.
 - Login returns the same generic error for a wrong password and for an unregistered username, so it can't be used to check which usernames exist.
+- Rate limiting per client: 10 login/sign-up attempts, 10 meetup searches and 20 friend requests per minute, answered with HTTP 429 and a `Retry-After` header. This slows password guessing and username probing, and stops one client flooding OneMap through the meetup planner.
+- A friend request to an unknown username gets a neutral "couldn't send" reply rather than confirming no such account exists.
+- A friend's home station is only visible to accepted friends.
 - Server-side username validation (`/^[a-zA-Z0-9_]{3,24}$/`) rejects anything else before it ever reaches a query.
 - The connection to the hosted database is TLS-encrypted (required by Aiven); the CA certificate needed for it is committed to the repo, since it only verifies the server's identity and grants no access by itself.
 
@@ -195,28 +212,28 @@ Everything else lives in the backend's own cache files.
 crowdy/
 ├── app/                     # Expo/React Native frontend
 │   ├── src/
-│   │   ├── components/      # Map, venue rows, crowd badge, tab bar, charts
+│   │   ├── components/      # Map, venue rows, crowd badge, tab bar, charts, station picker
 │   │   ├── context/         # AuthContext
 │   │   ├── navigation/      # React Navigation route types
-│   │   ├── screens/         # Home, Detail, Directions, Settings
+│   │   ├── screens/         # Home, Detail, Directions, Meetup, Friends, Settings
 │   │   ├── services/        # api.ts (the only file that talks to the backend), local storage, distance/hours helpers
 │   │   ├── theme/           # Light/dark theme + dark map style
-│   │   └── types/           # Shared types (Venue, MapRegion, RailLineSegment, LayerState)
+│   │   └── types/           # Shared types (Venue, MapRegion, RailLineSegment, LayerState, friends and meetup)
 │   ├── App.tsx
 │   └── app.json
 │
 ├── server/                  # Node/Express backend
 │   ├── src/
 │   │   ├── data/            # Known venue data (malls, stations, rail lines) + venue aggregation
-│   │   ├── middleware/       # requireAuth
+│   │   ├── middleware/      # requireAuth, rateLimit
 │   │   ├── routes/          # One router per resource
-│   │   ├── services/        # One module per external concern (LTA, carparks, Popular Times, OneMap routing, heatmap image, auth, db, alternatives, distance)
+│   │   ├── services/        # One module per external concern (LTA, carparks, Popular Times, OneMap routing, heatmap image, auth, db, alternatives, distance, meetup, social tables)
 │   │   └── types/           # Venue type (kept manually in sync with app/src/types/venue.ts)
 │   ├── scripts/             # One-off build-time scripts (mall geocoding, station hours, DB schema init)
 │   ├── certs/               # Aiven CA certificate (safe to commit - verifies server identity only, grants no access)
 │   └── data/                # Runtime caches (gitignored) - local copy of the Popular Times cache, carpark history
 │
-└── docs/                    # SDLC deliverables - not created yet; written in one pass once the app itself is feature-complete
+└── deliverables/            # Lab deliverables, one folder per lab (on main only)
 ```
 
 ## Known Limitations
@@ -226,6 +243,6 @@ crowdy/
 - **The crowd heatmap is iOS-only for now** — see the Features section of the team briefing for why (no gradient/heatmap layer available outside Google Maps, which Expo Go no longer supports).
 
 ## Branches
-- `main` — stable/demo-ready
+- `main` — stable/demo-ready, plus the lab deliverables
 - `dev` — integration branch (all work currently happens here)
 - `feature/*` — one per feature, branched from `dev`
