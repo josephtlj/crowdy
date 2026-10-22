@@ -2,6 +2,7 @@ import { CrowdLevel, Venue } from "../types/venue";
 import { STATIONS } from "../data/stations";
 import { getVenues } from "../data/venues";
 import { getRoute } from "./directions";
+import { getLatestPopularTimes } from "./popularTimes";
 import { haversineKm } from "./distance";
 
 // How many malls get a real travel-time check. Each one costs one OneMap
@@ -159,14 +160,23 @@ const travelCache = new Map<string, { minutes: number; at: number }>();
 // Fills in a time for one station-to-mall trip: cached, from OneMap, or (if
 // OneMap fails or isn't configured) a marked estimate. `failures` collects
 // failed trips so the caller logs one line per plan instead of one per trip.
-async function transitTime(from: Participant, to: Venue, venues: Venue[], failures: string[]): Promise<TravelTime> {
-  const key = `${from.stationId}->${to.id}`;
+// A trip at a chosen time is cached per hour, since timetables differ (e.g.
+// late at night).
+async function transitTime(
+  from: Participant,
+  to: Venue,
+  venues: Venue[],
+  failures: string[],
+  at?: Date
+): Promise<TravelTime> {
+  const when = at ? `@${Math.floor(at.getTime() / 3_600_000)}` : "";
+  const key = `${from.stationId}->${to.id}${when}`;
   const cached = travelCache.get(key);
   if (cached && Date.now() - cached.at < TRAVEL_CACHE_MS) {
     return { stationId: from.stationId, minutes: cached.minutes, estimated: false };
   }
   try {
-    const route = await getRoute({ lat: from.lat, lng: from.lng }, { lat: to.lat, lng: to.lng }, "transit", venues);
+    const route = await getRoute({ lat: from.lat, lng: from.lng }, { lat: to.lat, lng: to.lng }, "transit", venues, at);
     if (route) {
       const minutes = Math.max(1, Math.round(route.durationSeconds / 60));
       travelCache.set(key, { minutes, at: Date.now() });
@@ -192,17 +202,35 @@ async function runLimited<T>(tasks: (() => Promise<T>)[], limit: number): Promis
   return results;
 }
 
+// Each mall's usual crowd level at a chosen time, from its Popular Times
+// week, in place of its level right now. A mall never scraped stays
+// "Unavailable".
+function mallsAt(malls: Venue[], at: Date): Venue[] {
+  return malls.map((mall) => {
+    const reading = getLatestPopularTimes(mall.id, at);
+    return {
+      ...mall,
+      crowdLevel: reading?.crowdLevel ?? "Unavailable",
+      crowdPercent: reading?.crowdPercent ?? 0,
+    };
+  });
+}
+
 /**
  * Suggests where a group should meet: malls that suit the group's priority
- * by public transport and aren't too crowded right now.
+ * by public transport and aren't too crowded, right now or at a chosen time.
  * @param stationIds - each person's starting MRT/LRT station id (2-6, repeats allowed)
  * @param priority - "fair", "fast" or "quiet"
+ * @param at - when the group will meet; omitted means now. Crowd levels then
+ *   come from each mall's usual level at that hour, and travel times from
+ *   that time's timetable.
  * @returns up to three suggestions (none only if there are no malls at all),
- *   and whether every mall is currently closed
+ *   and whether every mall is closed at that time
  */
 export async function planMeetup(
   stationIds: string[],
-  priority: MeetupPriority = "fair"
+  priority: MeetupPriority = "fair",
+  at?: Date
 ): Promise<{ suggestions: MeetupSuggestion[]; allClosed: boolean }> {
   const participants: Participant[] = stationIds.map((id) => {
     const station = STATIONS.find((s) => s.id === id)!;
@@ -210,7 +238,8 @@ export async function planMeetup(
   });
 
   const venues = await getVenues();
-  const malls = venues.filter((v) => v.category === "Venue");
+  const mallsNow = venues.filter((v) => v.category === "Venue");
+  const malls = at ? mallsAt(mallsNow, at) : mallsNow;
   // Only "closed" if there are readings and all of them say closed - no
   // readings at all means crowd data is missing, not that malls are shut.
   const known = malls.filter((m) => m.crowdLevel !== "Unavailable");
@@ -221,7 +250,7 @@ export async function planMeetup(
   // People starting from the same station share one lookup per mall.
   const distinct = [...new Map(participants.map((p) => [p.stationId, p])).values()];
   const failures: string[] = [];
-  const tasks = shortlist.flatMap((mall) => distinct.map((p) => () => transitTime(p, mall, venues, failures)));
+  const tasks = shortlist.flatMap((mall) => distinct.map((p) => () => transitTime(p, mall, venues, failures, at)));
   const times = await runLimited(tasks, MAX_CONCURRENT_ROUTES);
   if (failures.length > 0) {
     console.error(`Meetup: ${failures.length} OneMap route(s) failed, using estimates - first: ${failures[0]}`);

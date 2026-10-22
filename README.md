@@ -45,7 +45,7 @@ flowchart LR
 - **Accounts and favourites** — save venues on the device as a guest, or sign in to sync them across devices.
 - **In-app directions** — transit, walking, driving and cycling routes to a venue via OneMap, drawn on Crowdy's own map, with the live crowd level at each MRT/LRT station you board. *Implemented by Oscar.*
 - **Friends** — add friends by username, accept or decline requests, and set a home station. A friend's home station is only shared once both sides have accepted.
-- **Meetup planner** — pick 2–6 people (yourself, friends with a home station, or anyone by station), choose what matters most — *fairest trip* (no one travels much longer than the rest), *fastest overall* (lowest average trip) or *quietest* (least crowded mall within a reasonable trip) — and get the top 3 malls with each person's transit time and the mall's current crowd level.
+- **Meetup planner** — pick 2–6 people (yourself, friends with a home station, or anyone by station), choose what matters most — *fairest trip* (no one travels much longer than the rest), *fastest overall* (lowest average trip) or *quietest* (least crowded mall within a reasonable trip) — and when you'll meet (now, or any hour up to a week ahead), and get the top 3 malls with each person's transit time and the mall's crowd level at that time. A later time uses each mall's usual crowd at that hour from its Popular Times week, and that time's train and bus timetable.
 - **Light and dark mode** — follows the user's choice in Settings, remembered on the device along with the language.
 
 ## Tech Stack
@@ -131,8 +131,8 @@ Only one machine scrapes Google Popular Times; every other backend reads the sha
 3. Scan the QR code with **Expo Go** (currently SDK 57) on the same Wi-Fi as the machine running the backend — the app resolves the backend's address automatically from Metro's own host, no manual config needed.
 
 ### Running Tests
-- `cd server && npm test` — signup/login validation, favourites and friends routes, nearby alternatives, meetup ranking for each priority, rate limiting. Uses an in-memory fake database, so it never touches the real one.
-- `cd app && npm test` — venue search ranking and keeping guest saves when merging into an account fails.
+- `cd server && npm test` — signup/login validation, favourites and friends routes, nearby alternatives, meetup ranking for each priority and meeting times, opening hours, rate limiting, plus the Lab 4 black-box (`alternatives.blackbox`) and basis path (`openingHours.basisPath`) cases. Uses an in-memory fake database, so it never touches the real one.
+- `cd app && npm test` — venue search ranking, choosing a meeting time, route instruction translation, and keeping guest saves when merging into an account fails, plus the Lab 4 basis path cases for search (`venueSearch.basisPath`).
 
 ## API Documentation
 
@@ -170,7 +170,7 @@ Only one machine scrapes Google Popular Times; every other backend reads the sha
 - `PUT /friends/home-station` — set your home station (`stationId`), or clear it with `null`
 
 ### Meetup — `/meetup` *(10 searches per minute per client)*
-- `POST /meetup` — `stationIds` (2–6 MRT/LRT station ids, one per person, repeats allowed) and `priority` (`fair` (default), `fast` or `quiet`). Shortlists malls by distance, looks up each person's transit time with OneMap (falling back to a marked estimate if a lookup fails), and returns the top 3 malls with every person's travel time and the mall's crowd level. Also says when every mall with crowd data is closed. No sign-in needed, so guests can use it too.
+- `POST /meetup` — `stationIds` (2–6 MRT/LRT station ids, one per person, repeats allowed), `priority` (`fair` (default), `fast` or `quiet`) and optionally `at` (an ISO date-time within the next week; left out means now). Shortlists malls by distance, looks up each person's transit time with OneMap (falling back to a marked estimate if a lookup fails), and returns the top 3 malls with every person's travel time and the mall's crowd level. With `at`, crowd levels are each mall's usual level at that hour and routes use that time's timetable. Also says when every mall with crowd data is closed at that time. No sign-in needed, so guests can use it too.
 
 ## External APIs & Services
 

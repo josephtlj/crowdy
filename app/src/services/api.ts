@@ -329,8 +329,9 @@ export function setHomeStation(token: string, stationId: string | null): Promise
  * Asks the server where a group should meet.
  * @param stationIds - each person's starting station id (2-6)
  * @param priority - "fair" (shortest longest trip), "fast" (shortest average) or "quiet" (least crowded)
+ * @param at - when the group will meet, within the next week; omitted means now
  * @returns up to three suggestions with everyone's travel times
  */
-export function getMeetupSuggestions(stationIds: string[], priority: MeetupPriority): Promise<MeetupPlan> {
-  return postJson("/meetup", { stationIds, priority });
+export function getMeetupSuggestions(stationIds: string[], priority: MeetupPriority, at?: Date): Promise<MeetupPlan> {
+  return postJson("/meetup", { stationIds, priority, ...(at ? { at: at.toISOString() } : {}) });
 }

@@ -68,7 +68,7 @@ interface CacheEntry {
 // A single scrape captures the whole week (see scrapePopularTimes below),
 // so there's no need to re-scrape often: the pattern itself barely moves,
 // and "right now" is always recomputed fresh from whichever day's cached
-// pattern matches the actual current day of week (see currentReading).
+// pattern matches the actual current day of week (see readingAt).
 
 // Persisted to disk (same pattern as carpark-history.json) so a server
 // restart doesn't wipe every venue back to "never checked" - without this,
@@ -256,24 +256,30 @@ function mapCrowdLevel(percent: number): CrowdLevel {
   return "Very High";
 }
 
-// The reading for right now: finds whichever day's pattern actually
-// matches today (not just "whichever day was scraped"), then the entry for
-// the current hour within it. A day with no pattern at all (venue closed
+// The reading for a given moment (normally right now): finds whichever
+// day's pattern actually matches that day (not just "whichever day was
+// scraped"), then the entry for that hour within it. A day with no pattern at all (venue closed
 // that whole day - zero bars) or no entry for this specific hour both mean
 // closed right now, same as before - a real result, not a scrape failure.
 // So does the venue's own opening hours saying it's shut: Google's chart
 // often has a 0% bar for the closing hour itself (10pm for a mall that
 // closes at 10pm), which on its own read as "Low" next to "Hours: Closed".
-function currentReading(result: PopularTimesResult): CurrentReading {
-  const now = new Date();
-  const todayPattern = result.weekly.find((d) => d.day === now.getDay());
-  const hourly = todayPattern?.hourly ?? [];
-  const entry = hourly.find((e) => e.hour === now.getHours());
+/**
+ * Reads a venue's typical crowd level for one moment from its weekly pattern.
+ * @param result - the venue's scraped weekly pattern and opening hours
+ * @param at - the moment to read (day of week and hour are used)
+ * @returns that day's hourly pattern, and the crowd level for that hour
+ *   ("Closed" if the venue is shut then)
+ */
+export function readingAt(result: PopularTimesResult, at: Date): CurrentReading {
+  const dayPattern = result.weekly.find((d) => d.day === at.getDay());
+  const hourly = dayPattern?.hourly ?? [];
+  const entry = hourly.find((e) => e.hour === at.getHours());
   // Older cache entries (scraped before hours extraction existed) simply
   // have no `hours` field - defaulting to empty rather than crashing, same
   // tolerance as any other pre-migration cache entry in this file.
   const hours = result.hours ?? [];
-  if (!entry || isOpenAt(hours, now) === false) return { crowdPercent: 0, crowdLevel: "Closed", hourly, hours };
+  if (!entry || isOpenAt(hours, at) === false) return { crowdPercent: 0, crowdLevel: "Closed", hourly, hours };
   return { crowdPercent: entry.percent, crowdLevel: mapCrowdLevel(entry.percent), hourly, hours };
 }
 
@@ -546,7 +552,7 @@ export async function refreshPopularTimesNow(
   if (result) {
     const scrapedAt = Date.now();
     recordEntry(venueId, { result, timestamp: scrapedAt });
-    return { ...currentReading(result), scrapedAt };
+    return { ...readingAt(result, new Date()), scrapedAt };
   }
 
   // A failed on-demand check (e.g. Google rate-limiting this request, or
@@ -564,12 +570,16 @@ export async function refreshPopularTimesNow(
 /**
  * Returns the most recent Popular Times reading for a venue, however old.
  * @param venueId - the venue's id
- * @returns the reading for the current hour and its scrape time, or null if never scraped
+ * @param at - the moment to read the pattern for (defaults to now)
+ * @returns the reading for that hour and the scrape time, or null if never scraped
  */
-export function getLatestPopularTimes(venueId: string): (CurrentReading & { scrapedAt: number }) | null {
+export function getLatestPopularTimes(
+  venueId: string,
+  at: Date = new Date()
+): (CurrentReading & { scrapedAt: number }) | null {
   const cached = cache.get(venueId);
   if (!cached?.result) return null;
-  return { ...currentReading(cached.result), scrapedAt: cached.timestamp };
+  return { ...readingAt(cached.result, at), scrapedAt: cached.timestamp };
 }
 
 export type ScrapeOutcome = "updated" | "failed" | "limitedView";
