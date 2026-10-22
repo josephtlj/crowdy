@@ -29,6 +29,7 @@ export default function FriendsScreen() {
   const [overview, setOverview] = useState<FriendsOverview | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [stations, setStations] = useState<Venue[]>([]);
+  const [stationsFailed, setStationsFailed] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [username, setUsername] = useState("");
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
@@ -52,12 +53,15 @@ export default function FriendsScreen() {
     }, [load])
   );
 
-  useEffect(() => {
+  const loadStations = useCallback(() => {
+    setStationsFailed(false);
     api
       .getAllVenues()
       .then((venues) => setStations(venues.filter((v) => v.category === "Transit")))
-      .catch(() => {});
+      .catch(() => setStationsFailed(true));
   }, []);
+
+  useEffect(loadStations, [loadStations]);
 
   async function act(action: () => Promise<void>) {
     setBusy(true);
@@ -227,6 +231,8 @@ export default function FriendsScreen() {
       <StationPicker
         visible={pickerOpen}
         stations={stations}
+        loadFailed={stationsFailed}
+        onRetry={loadStations}
         onClose={() => setPickerOpen(false)}
         onSelect={(stationId) => {
           setPickerOpen(false);

@@ -5,9 +5,15 @@ import { getRoute } from "./directions";
 import { haversineKm } from "./distance";
 
 // How many malls get a real travel-time check. Each one costs one OneMap
-// route per person, so this keeps a group of six to 30 lookups.
-const SHORTLIST_SIZE = 5;
+// route per distinct starting station, so this keeps a group of six to at
+// most 30-42 lookups. "Least crowded" checks a few more, since the quietest
+// mall is less likely to be among the very nearest.
+const SHORTLIST_SIZE: Record<MeetupPriority, number> = { fair: 5, fast: 5, quiet: 7 };
 const RESULT_COUNT = 3;
+// "Least crowded" only considers malls whose longest trip is within this
+// many minutes of the best option's, so a quiet mall doesn't win by sending
+// someone across the island.
+const QUIET_EXTRA_MINUTES = 20;
 const MAX_CONCURRENT_ROUTES = 8;
 
 // A travel time doesn't change much within a day, and the same group often
@@ -24,6 +30,15 @@ const CROWD_PENALTY_MIN: Record<CrowdLevel, number> = {
   Unavailable: 8,
   Closed: 25,
 };
+
+/**
+ * What the group cares about most when choosing where to meet:
+ * - fair: the longest anyone has to travel is as short as possible
+ * - fast: the group's average trip is as short as possible
+ * - quiet: the least crowded mall within reasonable reach
+ */
+export type MeetupPriority = "fair" | "fast" | "quiet";
+export const MEETUP_PRIORITIES: MeetupPriority[] = ["fair", "fast", "quiet"];
 
 export interface Participant {
   stationId: string;
@@ -48,31 +63,69 @@ export interface MeetupSuggestion {
   avgMinutes: number;
 }
 
-/**
- * Picks the malls worth a real travel-time check: those whose farthest
- * participant is closest in a straight line. Open malls are preferred; if
- * every mall is closed (late at night) all of them are considered.
- * @param malls - candidate venues (malls only)
- * @param participants - each person's starting station
- * @param size - how many malls to keep
- * @returns the shortlisted malls, best first
- */
-export function shortlistMalls(malls: Venue[], participants: Participant[], size = SHORTLIST_SIZE): Venue[] {
-  const usable = malls.filter((m) => m.crowdLevel !== "Unavailable");
-  const open = usable.filter((m) => m.crowdLevel !== "Closed");
-  const pool = open.length > 0 ? open : usable;
-  const farthest = (m: Venue) => Math.max(...participants.map((p) => haversineKm(p.lat, p.lng, m.lat, m.lng)));
-  return [...pool].sort((a, b) => farthest(a) - farthest(b)).slice(0, size);
+// Malls to choose from, best data first: open malls with a crowd reading;
+// if none (late at night) every mall with a reading, closed ones included;
+// if no mall has a reading at all (e.g. a fresh server with no Popular Times
+// data yet) every mall, so the group still gets somewhere to meet.
+function candidateMalls(malls: Venue[]): Venue[] {
+  const known = malls.filter((m) => m.crowdLevel !== "Unavailable");
+  const open = known.filter((m) => m.crowdLevel !== "Closed");
+  if (open.length > 0) return open;
+  if (known.length > 0) return known;
+  return malls;
 }
 
 /**
- * Ranks meetup options: fairest first (shortest longest-trip), then shortest
- * average trip, with a penalty for busier malls.
+ * Picks the malls worth a real travel-time check, by straight-line distance:
+ * nearest to the farthest person ("fair"), nearest on average ("fast"), or
+ * nearest on average with busier malls pushed back ("quiet").
+ * @param malls - candidate venues (malls only)
+ * @param participants - each person's starting station
+ * @param priority - what the group cares about most
+ * @param size - how many malls to keep
+ * @returns the shortlisted malls, best first (empty if there are no malls)
+ */
+export function shortlistMalls(
+  malls: Venue[],
+  participants: Participant[],
+  priority: MeetupPriority = "fair",
+  size = SHORTLIST_SIZE[priority]
+): Venue[] {
+  const km = (m: Venue) => participants.map((p) => haversineKm(p.lat, p.lng, m.lat, m.lng));
+  const average = (xs: number[]) => xs.reduce((sum, x) => sum + x, 0) / xs.length;
+  const metric = (m: Venue) => {
+    if (priority === "fair") return Math.max(...km(m));
+    if (priority === "fast") return average(km(m));
+    return average(km(m)) + CROWD_PENALTY_MIN[m.crowdLevel] * 0.3;
+  };
+  return [...candidateMalls(malls)].sort((a, b) => metric(a) - metric(b)).slice(0, size);
+}
+
+// Each priority's score, in minutes (lower is better). Every score includes
+// the crowd penalty; "quiet" triples it so crowding outweighs a few minutes
+// of travel.
+function score(maxMinutes: number, avgMinutes: number, crowd: CrowdLevel, priority: MeetupPriority): number {
+  const penalty = CROWD_PENALTY_MIN[crowd];
+  if (priority === "fast") return avgMinutes + 0.25 * maxMinutes + penalty;
+  if (priority === "quiet") return 0.5 * (maxMinutes + avgMinutes) + 3 * penalty;
+  return maxMinutes + 0.25 * avgMinutes + penalty;
+}
+
+/**
+ * Ranks meetup options by the group's priority, with busier malls penalised.
  * @param options - each mall with every participant's travel time
+ * @param priority - "fair" (shortest longest trip), "fast" (shortest average)
+ *   or "quiet" (crowd level weighted most)
  * @returns the options with summary times, best first
  */
-export function rankMeetupOptions(options: { venue: Venue; travel: TravelTime[] }[]): MeetupSuggestion[] {
-  return options
+export function rankMeetupOptions(
+  options: { venue: Venue; travel: TravelTime[] }[],
+  priority: MeetupPriority = "fair"
+): MeetupSuggestion[] {
+  const longest = (o: { travel: TravelTime[] }) => Math.max(...o.travel.map((t) => t.minutes));
+  const bestLongest = Math.min(...options.map(longest));
+  const inReach = priority === "quiet" ? options.filter((o) => longest(o) <= bestLongest + QUIET_EXTRA_MINUTES) : options;
+  return inReach
     .map(({ venue, travel }) => {
       const minutes = travel.map((t) => t.minutes);
       const maxMinutes = Math.max(...minutes);
@@ -87,7 +140,7 @@ export function rankMeetupOptions(options: { venue: Venue; travel: TravelTime[] 
           maxMinutes: Math.round(maxMinutes),
           avgMinutes: Math.round(avgMinutes),
         },
-        score: maxMinutes + 0.25 * avgMinutes + CROWD_PENALTY_MIN[venue.crowdLevel],
+        score: score(maxMinutes, avgMinutes, venue.crowdLevel, priority),
       };
     })
     .sort((a, b) => a.score - b.score)
@@ -103,7 +156,10 @@ function estimateMinutes(from: Participant, to: Venue): number {
 
 const travelCache = new Map<string, { minutes: number; at: number }>();
 
-async function transitTime(from: Participant, to: Venue, venues: Venue[]): Promise<TravelTime> {
+// Fills in a time for one station-to-mall trip: cached, from OneMap, or (if
+// OneMap fails or isn't configured) a marked estimate. `failures` collects
+// failed trips so the caller logs one line per plan instead of one per trip.
+async function transitTime(from: Participant, to: Venue, venues: Venue[], failures: string[]): Promise<TravelTime> {
   const key = `${from.stationId}->${to.id}`;
   const cached = travelCache.get(key);
   if (cached && Date.now() - cached.at < TRAVEL_CACHE_MS) {
@@ -117,7 +173,7 @@ async function transitTime(from: Participant, to: Venue, venues: Venue[]): Promi
       return { stationId: from.stationId, minutes, estimated: false };
     }
   } catch (err) {
-    console.error(`Meetup: OneMap route failed (${key}), using an estimate:`, err instanceof Error ? err.message : err);
+    failures.push(`${key} (${err instanceof Error ? err.message : String(err)})`);
   }
   return { stationId: from.stationId, minutes: estimateMinutes(from, to), estimated: true };
 }
@@ -137,12 +193,17 @@ async function runLimited<T>(tasks: (() => Promise<T>)[], limit: number): Promis
 }
 
 /**
- * Suggests where a group should meet: malls that are fair for everyone to
- * reach by public transport and not too crowded right now.
+ * Suggests where a group should meet: malls that suit the group's priority
+ * by public transport and aren't too crowded right now.
  * @param stationIds - each person's starting MRT/LRT station id (2-6, repeats allowed)
- * @returns up to three suggestions, and whether every mall is currently closed
+ * @param priority - "fair", "fast" or "quiet"
+ * @returns up to three suggestions (none only if there are no malls at all),
+ *   and whether every mall is currently closed
  */
-export async function planMeetup(stationIds: string[]): Promise<{ suggestions: MeetupSuggestion[]; allClosed: boolean }> {
+export async function planMeetup(
+  stationIds: string[],
+  priority: MeetupPriority = "fair"
+): Promise<{ suggestions: MeetupSuggestion[]; allClosed: boolean }> {
   const participants: Participant[] = stationIds.map((id) => {
     const station = STATIONS.find((s) => s.id === id)!;
     return { stationId: id, lat: station.lat, lng: station.lng };
@@ -150,15 +211,26 @@ export async function planMeetup(stationIds: string[]): Promise<{ suggestions: M
 
   const venues = await getVenues();
   const malls = venues.filter((v) => v.category === "Venue");
-  const allClosed = !malls.some((m) => m.crowdLevel !== "Closed" && m.crowdLevel !== "Unavailable");
-  const shortlist = shortlistMalls(malls, participants);
+  // Only "closed" if there are readings and all of them say closed - no
+  // readings at all means crowd data is missing, not that malls are shut.
+  const known = malls.filter((m) => m.crowdLevel !== "Unavailable");
+  const allClosed = known.length > 0 && known.every((m) => m.crowdLevel === "Closed");
+  const shortlist = shortlistMalls(malls, participants, priority);
+  if (shortlist.length === 0) return { suggestions: [], allClosed };
 
-  const tasks = shortlist.flatMap((mall) => participants.map((p) => () => transitTime(p, mall, venues)));
+  // People starting from the same station share one lookup per mall.
+  const distinct = [...new Map(participants.map((p) => [p.stationId, p])).values()];
+  const failures: string[] = [];
+  const tasks = shortlist.flatMap((mall) => distinct.map((p) => () => transitTime(p, mall, venues, failures)));
   const times = await runLimited(tasks, MAX_CONCURRENT_ROUTES);
-  const options = shortlist.map((venue, i) => ({
-    venue,
-    travel: times.slice(i * participants.length, (i + 1) * participants.length),
-  }));
+  if (failures.length > 0) {
+    console.error(`Meetup: ${failures.length} OneMap route(s) failed, using estimates - first: ${failures[0]}`);
+  }
 
-  return { suggestions: rankMeetupOptions(options).slice(0, RESULT_COUNT), allClosed };
+  const options = shortlist.map((venue, i) => {
+    const byStation = new Map(distinct.map((p, j) => [p.stationId, times[i * distinct.length + j]]));
+    return { venue, travel: participants.map((p) => byStation.get(p.stationId)!) };
+  });
+
+  return { suggestions: rankMeetupOptions(options, priority).slice(0, RESULT_COUNT), allClosed };
 }

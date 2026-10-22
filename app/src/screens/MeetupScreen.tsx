@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -16,7 +16,8 @@ import { useTheme } from "../theme/ThemeContext";
 import { useLanguage } from "../i18n/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 import * as api from "../services/api";
-import { FriendsOverview, MeetupPlan } from "../types/social";
+import { FriendsOverview, MeetupPlan, MeetupPriority } from "../types/social";
+import { StringKey } from "../i18n/strings";
 import { Venue } from "../types/venue";
 import { StationPicker } from "../components/StationPicker";
 import { CrowdBadge } from "../components/CrowdBadge";
@@ -34,6 +35,12 @@ interface Participant {
   accountId?: number;
 }
 
+const PRIORITIES: { key: MeetupPriority; label: StringKey; hint: StringKey }[] = [
+  { key: "fair", label: "meetup.fair", hint: "meetup.fairHint" },
+  { key: "fast", label: "meetup.fast", hint: "meetup.fastHint" },
+  { key: "quiet", label: "meetup.quiet", hint: "meetup.quietHint" },
+];
+
 let nextKey = 0;
 const newKey = () => `p${nextKey++}`;
 
@@ -46,6 +53,11 @@ export default function MeetupScreen({ navigation }: Props) {
   const { token, username, accountId } = useAuth();
 
   const [stations, setStations] = useState<Venue[]>([]);
+  const [stationsFailed, setStationsFailed] = useState(false);
+  const [priority, setPriority] = useState<MeetupPriority>("fair");
+  // Bumped whenever the group or priority changes, so a search that was
+  // still running for the old group can't overwrite the screen afterwards.
+  const requestId = useRef(0);
   const [friends, setFriends] = useState<FriendsOverview | null>(null);
   const [people, setPeople] = useState<Participant[]>([]);
   const [pickingFor, setPickingFor] = useState<string | null>(null);
@@ -56,12 +68,15 @@ export default function MeetupScreen({ navigation }: Props) {
 
   const stationName = useMemo(() => new Map(stations.map((s) => [s.id, s.name])), [stations]);
 
-  useEffect(() => {
+  const loadStations = useCallback(() => {
+    setStationsFailed(false);
     api
       .getAllVenues()
       .then((venues) => setStations(venues.filter((v) => v.category === "Transit")))
-      .catch(() => {});
+      .catch(() => setStationsFailed(true));
   }, []);
+
+  useEffect(loadStations, [loadStations]);
 
   // Refreshed on focus so friends added on the Friends screen show up here.
   useFocusEffect(
@@ -77,8 +92,14 @@ export default function MeetupScreen({ navigation }: Props) {
   // Any change to the group makes the previous suggestions out of date.
   function updatePeople(next: Participant[]) {
     setPeople(next);
+    clearResults();
+  }
+
+  function clearResults() {
+    requestId.current++;
     setPlan(null);
     setFailed(false);
+    setLoading(false);
   }
 
   const hasMe = people.some((p) => p.accountId === accountId);
@@ -103,15 +124,17 @@ export default function MeetupScreen({ navigation }: Props) {
 
   async function findPlaces() {
     if (!ready) return;
+    const id = ++requestId.current;
     setLoading(true);
     setFailed(false);
     setPlan(null);
     try {
-      setPlan(await api.getMeetupSuggestions(people.map((p) => p.stationId!)));
+      const result = await api.getMeetupSuggestions(people.map((p) => p.stationId!), priority);
+      if (id === requestId.current) setPlan(result);
     } catch {
-      setFailed(true);
+      if (id === requestId.current) setFailed(true);
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
   }
 
@@ -166,6 +189,29 @@ export default function MeetupScreen({ navigation }: Props) {
       </View>
       {full && <Text style={[styles.hint, { color: colors.textMuted }]}>{t("meetup.max", { n: MAX_PEOPLE })}</Text>}
 
+      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t("meetup.priority")}</Text>
+      <View style={styles.addRow}>
+        {PRIORITIES.map((p) => {
+          const selected = p.key === priority;
+          return (
+            <TouchableOpacity
+              key={p.key}
+              onPress={() => {
+                setPriority(p.key);
+                clearResults();
+              }}
+              style={[
+                styles.chip,
+                { borderColor: selected ? colors.accent : colors.border, backgroundColor: selected ? colors.accent : "transparent" },
+              ]}
+            >
+              <Text style={[styles.chipText, { color: selected ? "#FFFFFF" : colors.text }]}>{t(p.label)}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      <Text style={[styles.hint, { color: colors.textMuted }]}>{t(PRIORITIES.find((p) => p.key === priority)!.hint)}</Text>
+
       <TouchableOpacity
         disabled={!ready || loading}
         onPress={findPlaces}
@@ -194,6 +240,9 @@ export default function MeetupScreen({ navigation }: Props) {
         <>
           <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t("meetup.results")}</Text>
           {plan.allClosed && <Text style={[styles.hint, { color: colors.textMuted }]}>{t("meetup.allClosed")}</Text>}
+          {plan.suggestions.length === 0 && (
+            <Text style={[styles.hint, { color: colors.textMuted }]}>{t("meetup.none")}</Text>
+          )}
           {plan.suggestions.map((s, i) => (
             <TouchableOpacity
               key={s.venueId}
@@ -239,6 +288,8 @@ export default function MeetupScreen({ navigation }: Props) {
       <StationPicker
         visible={pickingFor !== null}
         stations={stations}
+        loadFailed={stationsFailed}
+        onRetry={loadStations}
         onClose={() => setPickingFor(null)}
         onSelect={(stationId) => {
           updatePeople(people.map((p) => (p.key === pickingFor ? { ...p, stationId } : p)));

@@ -18,6 +18,8 @@ export interface FriendsOverview {
   outgoing: FriendRequest[];
 }
 
+export type MeetupPriority = "fair" | "fast" | "quiet";
+
 export interface MeetupTravelTime {
   stationId: string;
   minutes: number;

@@ -2,7 +2,7 @@ import { Platform } from "react-native";
 import Constants from "expo-constants";
 import { Venue } from "../types/venue";
 import { RailLineSegment } from "../types/railLine";
-import { FriendsOverview, MeetupPlan } from "../types/social";
+import { FriendsOverview, MeetupPlan, MeetupPriority } from "../types/social";
 import { Route, TravelMode } from "../types/directions";
 
 // Every screen talks to the app through this file only - screens never
@@ -328,8 +328,9 @@ export function setHomeStation(token: string, stationId: string | null): Promise
 /**
  * Asks the server where a group should meet.
  * @param stationIds - each person's starting station id (2-6)
+ * @param priority - "fair" (shortest longest trip), "fast" (shortest average) or "quiet" (least crowded)
  * @returns up to three suggestions with everyone's travel times
  */
-export function getMeetupSuggestions(stationIds: string[]): Promise<MeetupPlan> {
-  return postJson("/meetup", { stationIds });
+export function getMeetupSuggestions(stationIds: string[], priority: MeetupPriority): Promise<MeetupPlan> {
+  return postJson("/meetup", { stationIds, priority });
 }

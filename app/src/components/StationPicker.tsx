@@ -8,6 +8,9 @@ import { venueSearchRank } from "../services/venueSearch";
 interface Props {
   visible: boolean;
   stations: Venue[];
+  // Set when the list couldn't be loaded, with a way to try again.
+  loadFailed?: boolean;
+  onRetry?: () => void;
   onSelect: (stationId: string) => void;
   onClose: () => void;
 }
@@ -16,7 +19,7 @@ interface Props {
  * A searchable list of MRT/LRT stations, shown as a sheet, for picking where
  * someone starts from.
  */
-export function StationPicker({ visible, stations, onSelect, onClose }: Props) {
+export function StationPicker({ visible, stations, loadFailed, onRetry, onSelect, onClose }: Props) {
   const { colors } = useTheme();
   const { t } = useLanguage();
   const [query, setQuery] = useState("");
@@ -55,6 +58,16 @@ export function StationPicker({ visible, stations, onSelect, onClose }: Props) {
           autoCapitalize="none"
           clearButtonMode="while-editing"
         />
+        {loadFailed && stations.length === 0 && (
+          <View style={styles.failed}>
+            <Text style={{ color: colors.textMuted }}>{t("station.loadFailed")}</Text>
+            {onRetry && (
+              <TouchableOpacity onPress={onRetry}>
+                <Text style={[styles.close, { color: colors.accent }]}>{t("friends.retry")}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
         <FlatList
           data={results}
           keyExtractor={(s) => s.id}
@@ -89,6 +102,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 15,
   },
+  failed: { alignItems: "center", gap: 10, padding: 24 },
   row: { paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth },
   rowText: { fontSize: 15 },
 });
