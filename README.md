@@ -3,19 +3,21 @@
 NTU SC2006 Software Engineering.
 
 
-<p align="center">
-  <img src="images/new%20versions/IMG_5465.PNG" width="150" />
-  <img src="images/new%20versions/IMG_5466.PNG" width="150" />
-  <img src="images/new%20versions/IMG_5468.PNG" width="150" />
-  <img src="images/new%20versions/IMG_5471.PNG" width="150" />
-  <img src="images/new%20versions/IMG_5472.PNG" width="150" />
-</p>
-<p align="center">
-  <img src="images/new%20versions/IMG_5473.PNG" width="150" />
-  <img src="images/new%20versions/IMG_5480.PNG" width="150" />
-  <img src="images/new%20versions/IMG_5481.PNG" width="150" />
-  <img src="images/new%20versions/IMG_5482.PNG" width="150" />
-</p>
+<table align="center">
+  <tr>
+    <td align="center"><img src="images/new%20versions/IMG_5465.PNG" width="150" /><br /><sub>Crowd map</sub></td>
+    <td align="center"><img src="images/new%20versions/IMG_5466.PNG" width="150" /><br /><sub>Crowd heatmap</sub></td>
+    <td align="center"><img src="images/new%20versions/IMG_5468.PNG" width="150" /><br /><sub>MRT/LRT stations</sub></td>
+    <td align="center"><img src="images/new%20versions/IMG_5471.PNG" width="150" /><br /><sub>Saved venues</sub></td>
+    <td align="center"><img src="images/new%20versions/IMG_5472.PNG" width="150" /><br /><sub>Search</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="images/new%20versions/IMG_5473.PNG" width="150" /><br /><sub>Meetup planner</sub></td>
+    <td align="center"><img src="images/new%20versions/IMG_5480.PNG" width="150" /><br /><sub>Venue details</sub></td>
+    <td align="center"><img src="images/new%20versions/IMG_5481.PNG" width="150" /><br /><sub>Directions map</sub></td>
+    <td align="center"><img src="images/new%20versions/IMG_5482.PNG" width="150" /><br /><sub>Directions steps</sub></td>
+  </tr>
+</table>
 
 
 ## Overview
