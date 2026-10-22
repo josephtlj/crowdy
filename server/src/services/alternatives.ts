@@ -22,9 +22,11 @@ export function findAlternatives(venue: Venue, allVenues: Venue[]): Venue[] {
     // reading for yet - recommending it would be a guess, not a fact.
     .filter((candidate) => candidate.crowdLevel !== "Closed" && candidate.crowdLevel !== "Unavailable")
     .filter((candidate) => candidate.crowdPercent < venue.crowdPercent)
+    // Rounded to the metre, so a venue exactly 3 km away counts as within
+    // 3 km - unrounded, floating-point error can put it at 3.000000000000002.
     .map((candidate) => ({
       ...candidate,
-      distanceKm: haversineKm(venue.lat, venue.lng, candidate.lat, candidate.lng),
+      distanceKm: Math.round(haversineKm(venue.lat, venue.lng, candidate.lat, candidate.lng) * 1000) / 1000,
     }))
     .filter((candidate) => candidate.distanceKm <= ALTERNATIVE_RADIUS_KM)
     .sort((a, b) => a.distanceKm - b.distanceKm)

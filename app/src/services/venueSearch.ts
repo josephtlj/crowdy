@@ -62,7 +62,14 @@ function editDistanceAtMostOne(a: string, b: string): boolean {
 
 // Matches whole words or the start of a word only - matching anywhere inside
 // a word made "ion" hit every "Station" and "Junction".
-function tokenHits(queryToken: string, haystackTokens: string[]): "exact" | "prefix" | "fuzzy" | null {
+/**
+ * Checks how one search word matches a list of words from a venue's name or address.
+ * @param queryToken - one normalised word the user typed
+ * @param haystackTokens - the normalised words to match against
+ * @returns "exact" (a whole word), "prefix" (the start of a word), "fuzzy"
+ *   (one typo in a word of 4+ letters), or null if nothing matches
+ */
+export function tokenHits(queryToken: string, haystackTokens: string[]): "exact" | "prefix" | "fuzzy" | null {
   if (haystackTokens.includes(queryToken)) return "exact";
   let fuzzy = false;
   for (const token of haystackTokens) {
