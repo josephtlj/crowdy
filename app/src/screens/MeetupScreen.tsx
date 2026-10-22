@@ -17,10 +17,11 @@ import { useLanguage } from "../i18n/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 import * as api from "../services/api";
 import { FriendsOverview, MeetupPlan, MeetupPriority } from "../types/social";
-import { StringKey } from "../i18n/strings";
+import { formatHour, StringKey } from "../i18n/strings";
 import { Venue } from "../types/venue";
 import { StationPicker } from "../components/StationPicker";
 import { CrowdBadge } from "../components/CrowdBadge";
+import { hourForDay, meetingDate, meetingDays, meetingHours, MeetingTime } from "../services/meetingTime";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Meetup">;
 
@@ -45,17 +46,19 @@ let nextKey = 0;
 const newKey = () => `p${nextKey++}`;
 
 // Meetup planner: add everyone's starting station (yourself, friends, or
-// anyone else), then get malls that are fair for everyone to reach by public
-// transport and not too crowded right now.
+// anyone else) and when you'll meet, then get malls that are fair for
+// everyone to reach by public transport and not too crowded at that time.
 export default function MeetupScreen({ navigation }: Props) {
   const { colors } = useTheme();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { token, username, accountId } = useAuth();
 
   const [stations, setStations] = useState<Venue[]>([]);
   const [stationsFailed, setStationsFailed] = useState(false);
   const [priority, setPriority] = useState<MeetupPriority>("fair");
-  // Bumped whenever the group or priority changes, so a search that was
+  // null means now.
+  const [when, setWhen] = useState<MeetingTime | null>(null);
+  // Bumped whenever the group, priority or time changes, so a search that was
   // still running for the old group can't overwrite the screen afterwards.
   const requestId = useRef(0);
   const [friends, setFriends] = useState<FriendsOverview | null>(null);
@@ -130,15 +133,50 @@ export default function MeetupScreen({ navigation }: Props) {
     setFailed(null);
     setPlan(null);
     try {
-      const result = await api.getMeetupSuggestions(people.map((p) => p.stationId!), priority);
+      const at = when ? meetingDate(when, new Date()) : undefined;
+      const result = await api.getMeetupSuggestions(people.map((p) => p.stationId!), priority, at);
       if (id === requestId.current) setPlan(result);
     } catch (err) {
-      const tooMany = err instanceof api.ApiError && err.status === 429;
-      if (id === requestId.current) setFailed(tooMany ? "meetup.tooMany" : "meetup.failed");
+      const status = err instanceof api.ApiError ? err.status : 0;
+      // The server only refuses a valid group's time once that time has passed.
+      const message = status === 429 ? "meetup.tooMany" : status === 400 && when ? "meetup.badTime" : "meetup.failed";
+      if (id === requestId.current) setFailed(message);
     } finally {
       if (id === requestId.current) setLoading(false);
     }
   }
+
+  const now = new Date();
+  const dayLabel = (day: number) =>
+    day === 0
+      ? t("meetup.today")
+      : day === 1
+        ? t("meetup.tomorrow")
+        : t(`day.${(now.getDay() + day) % 7}` as StringKey);
+  const whenLabel = when ? `${dayLabel(when.day)}, ${formatHour(when.hour, language)}` : t("meetup.now");
+
+  function chooseDay(day: number | null) {
+    if (day === null) setWhen(null);
+    else {
+      const hour = hourForDay(day, when?.hour ?? null, now);
+      setWhen(hour === null ? null : { day, hour });
+    }
+    clearResults();
+  }
+
+  // One selectable chip, highlighted when chosen.
+  const choice = (key: string | number, label: string, selected: boolean, onPress: () => void) => (
+    <TouchableOpacity
+      key={key}
+      onPress={onPress}
+      style={[
+        styles.chip,
+        { borderColor: selected ? colors.accent : colors.border, backgroundColor: selected ? colors.accent : "transparent" },
+      ]}
+    >
+      <Text style={[styles.chipText, { color: selected ? "#FFFFFF" : colors.text }]}>{label}</Text>
+    </TouchableOpacity>
+  );
 
   const card = [styles.card, { backgroundColor: colors.surface, borderColor: colors.border }];
   const labelFor = (stationId: string) => people.find((p) => p.stationId === stationId)?.label ?? stationId;
@@ -193,26 +231,31 @@ export default function MeetupScreen({ navigation }: Props) {
 
       <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t("meetup.priority")}</Text>
       <View style={styles.addRow}>
-        {PRIORITIES.map((p) => {
-          const selected = p.key === priority;
-          return (
-            <TouchableOpacity
-              key={p.key}
-              onPress={() => {
-                setPriority(p.key);
-                clearResults();
-              }}
-              style={[
-                styles.chip,
-                { borderColor: selected ? colors.accent : colors.border, backgroundColor: selected ? colors.accent : "transparent" },
-              ]}
-            >
-              <Text style={[styles.chipText, { color: selected ? "#FFFFFF" : colors.text }]}>{t(p.label)}</Text>
-            </TouchableOpacity>
-          );
-        })}
+        {PRIORITIES.map((p) =>
+          choice(p.key, t(p.label), p.key === priority, () => {
+            setPriority(p.key);
+            clearResults();
+          })
+        )}
       </View>
       <Text style={[styles.hint, { color: colors.textMuted }]}>{t(PRIORITIES.find((p) => p.key === priority)!.hint)}</Text>
+
+      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t("meetup.when")}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+        {choice("now", t("meetup.now"), when === null, () => chooseDay(null))}
+        {meetingDays(now).map((day) => choice(day, dayLabel(day), when?.day === day, () => chooseDay(day)))}
+      </ScrollView>
+      {when && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+          {meetingHours(when.day, now).map((hour) =>
+            choice(hour, formatHour(hour, language), when.hour === hour, () => {
+              setWhen({ day: when.day, hour });
+              clearResults();
+            })
+          )}
+        </ScrollView>
+      )}
+      <Text style={[styles.hint, { color: colors.textMuted }]}>{t(when ? "meetup.laterHint" : "meetup.nowHint")}</Text>
 
       <TouchableOpacity
         disabled={!ready || loading}
@@ -240,8 +283,12 @@ export default function MeetupScreen({ navigation }: Props) {
 
       {plan && (
         <>
-          <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t("meetup.results")}</Text>
-          {plan.allClosed && <Text style={[styles.hint, { color: colors.textMuted }]}>{t("meetup.allClosed")}</Text>}
+          <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
+            {when ? t("meetup.resultsAt", { when: whenLabel.toUpperCase() }) : t("meetup.results")}
+          </Text>
+          {plan.allClosed && (
+            <Text style={[styles.hint, { color: colors.textMuted }]}>{t(when ? "meetup.allClosedAt" : "meetup.allClosed")}</Text>
+          )}
           {plan.suggestions.length === 0 && (
             <Text style={[styles.hint, { color: colors.textMuted }]}>{t("meetup.none")}</Text>
           )}
@@ -349,6 +396,7 @@ const styles = StyleSheet.create({
   name: { fontSize: 15, fontWeight: "600" },
   station: { fontSize: 14 },
   addRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  chipRow: { flexDirection: "row", gap: 8 },
   chip: {
     flexDirection: "row",
     alignItems: "center",

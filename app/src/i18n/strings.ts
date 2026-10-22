@@ -131,7 +131,7 @@ export const STRINGS = {
     "screen.friends": "Friends",
     "settings.friends": "Friends",
     "common.close": "Close",
-    "meetup.intro": "Add everyone's starting station. Crowdy suggests malls that are fair for everyone to reach by public transport and not too crowded right now.",
+    "meetup.intro": "Add everyone's starting station. Crowdy suggests malls that are fair for everyone to reach by public transport and not too crowded when you meet.",
     "meetup.me": "Me ({name})",
     "meetup.person": "Person {n}",
     "meetup.addMe": "Add me",
@@ -192,6 +192,15 @@ export const STRINGS = {
     "auth.tooMany": "Too many attempts - wait a minute and try again.",
     "friends.tooMany": "Too many friend requests - wait a minute and try again.",
     "meetup.tooMany": "Too many searches - wait a minute and try again.",
+    "meetup.when": "WHEN",
+    "meetup.now": "Now",
+    "meetup.today": "Today",
+    "meetup.tomorrow": "Tomorrow",
+    "meetup.nowHint": "Uses each mall's crowd level right now.",
+    "meetup.laterHint": "Uses each mall's usual crowd at that time, and the train and bus timetable then.",
+    "meetup.resultsAt": "SUGGESTED PLACES · {when}",
+    "meetup.allClosedAt": "Every mall is usually closed then - try another time.",
+    "meetup.badTime": "That time has passed - choose another.",
   },
   zh: {
     "tab.areas": "附近",
@@ -321,7 +330,7 @@ export const STRINGS = {
     "screen.friends": "好友",
     "settings.friends": "好友",
     "common.close": "关闭",
-    "meetup.intro": "添加每个人的出发车站。Crowdy 会推荐大家乘公共交通都方便到达、此刻人流也不多的商场。",
+    "meetup.intro": "添加每个人的出发车站。Crowdy 会推荐大家乘公共交通都方便到达、见面时人流也不多的商场。",
     "meetup.me": "我（{name}）",
     "meetup.person": "第 {n} 人",
     "meetup.addMe": "加入我",
@@ -382,6 +391,15 @@ export const STRINGS = {
     "auth.tooMany": "尝试次数过多，请稍等一分钟再试。",
     "friends.tooMany": "好友请求过多，请稍等一分钟再试。",
     "meetup.tooMany": "搜索次数过多，请稍等一分钟再试。",
+    "meetup.when": "时间",
+    "meetup.now": "现在",
+    "meetup.today": "今天",
+    "meetup.tomorrow": "明天",
+    "meetup.nowHint": "使用各商场此刻的人流。",
+    "meetup.laterHint": "使用各商场在该时段的一般人流，以及当时的公共交通时刻表。",
+    "meetup.resultsAt": "推荐地点 · {when}",
+    "meetup.allClosedAt": "所有商场在该时段通常都已关闭，请换个时间试试。",
+    "meetup.badTime": "该时间已过，请重新选择。",
   },
 } as const;
 
@@ -418,6 +436,23 @@ export function sourceLabel(source: string, language: Language): string {
 
 export function serverErrorKey(message: string): StringKey | null {
   return SERVER_ERRORS[message] ?? null;
+}
+
+/**
+ * Formats an hour of the day the way the crowd chart labels it.
+ * @param hour - 0-23
+ * @param language - "en" ("7pm") or "zh" ("下午7点")
+ * @returns the hour label
+ */
+export function formatHour(hour: number, language: Language): string {
+  if (language === "zh") {
+    if (hour === 0) return "凌晨12点";
+    if (hour === 12) return "中午12点";
+    return hour < 12 ? `上午${hour}点` : `下午${hour - 12}点`;
+  }
+  if (hour === 0) return "12am";
+  if (hour === 12) return "12pm";
+  return hour < 12 ? `${hour}am` : `${hour - 12}pm`;
 }
 
 // Google-style "10:30 pm" strings. Chinese shows 下午10:30 instead.

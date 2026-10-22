@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useTheme } from "../theme/ThemeContext";
 import { useLanguage } from "../i18n/LanguageContext";
-import { Language } from "../i18n/strings";
+import { formatHour } from "../i18n/strings";
 
 interface Props {
   hourly: { hour: number; percent: number }[];
@@ -21,17 +21,6 @@ const TARGET_LABEL_COUNT = 6; // roughly this many labels regardless of how many
 // current hour specifically, not "whatever's selected").
 const SELECTED_COLOR = "#1A73E8";
 const CURRENT_COLOR = "#E53935";
-
-function formatHour(hour: number, language: Language): string {
-  if (language === "zh") {
-    if (hour === 0) return "凌晨12点";
-    if (hour === 12) return "中午12点";
-    return hour < 12 ? `上午${hour}点` : `下午${hour - 12}点`;
-  }
-  if (hour === 0) return "12am";
-  if (hour === 12) return "12pm";
-  return hour < 12 ? `${hour}am` : `${hour - 12}pm`;
-}
 
 // Centre of the i-th of N equal-width flex columns, as a percentage of the
 // row's total width - used to align the current-hour guide line and the

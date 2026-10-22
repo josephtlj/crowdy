@@ -56,13 +56,15 @@ const STATION_MATCH_KM = 0.4;
  * @param to - the destination venue's location
  * @param mode - transit, walk, drive or cycle
  * @param venues - the current venue list, used to look up station crowd levels
+ * @param departAt - when the trip starts, for public transport timetables (defaults to now)
  * @returns the route, or null if OneMap finds none
  */
 export async function getRoute(
   from: LatLng,
   to: LatLng,
   mode: TravelMode,
-  venues: Venue[]
+  venues: Venue[],
+  departAt: Date = new Date()
 ): Promise<Route | null> {
   const params = new URLSearchParams({
     start: `${from.lat},${from.lng}`,
@@ -71,9 +73,9 @@ export async function getRoute(
   });
 
   // Public transport is timetable-dependent, so it needs the moment of
-  // travel - "now", in Singapore time regardless of where the server runs.
+  // travel, in Singapore time regardless of where the server runs.
   if (mode === "transit") {
-    const { date, time } = singaporeDateTime();
+    const { date, time } = singaporeDateTime(departAt);
     params.set("date", date);
     params.set("time", time);
     params.set("mode", "TRANSIT");
@@ -274,7 +276,7 @@ function nearestStation(stations: Venue[], lat: number, lng: number): Venue | un
   return closest;
 }
 
-function singaporeDateTime(): { date: string; time: string } {
+function singaporeDateTime(at: Date): { date: string; time: string } {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Asia/Singapore",
     year: "numeric",
@@ -284,7 +286,7 @@ function singaporeDateTime(): { date: string; time: string } {
     minute: "2-digit",
     second: "2-digit",
     hour12: false,
-  }).formatToParts(new Date());
+  }).formatToParts(at);
 
   const find = (type: string) => parts.find((part) => part.type === type)?.value ?? "00";
 

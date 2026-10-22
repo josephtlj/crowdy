@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { rankMeetupOptions, shortlistMalls, type Participant, type TravelTime } from "../src/services/meetup";
+import { readingAt } from "../src/services/popularTimes";
+import { meetupRouter } from "../src/routes/meetup";
 import type { Venue } from "../src/types/venue";
+import { postJson, withApp } from "./http";
 
 const mall = (id: string, lat: number, lng: number, crowdLevel: Venue["crowdLevel"] = "Low"): Venue => ({
   id,
@@ -109,5 +112,44 @@ test("least crowded ignores quiet malls far out of reach for anyone", () => {
   assert.deepEqual(
     ranked.map((r) => r.venueId),
     ["quiet-ok", "moderate-near"]
+  );
+});
+
+// A mall open 10 am - 10 pm every day, quiet on Sunday mornings and busy
+// on Saturday evenings. Wednesday 21 Oct 2026 is the reference week.
+const pattern = {
+  weekly: [
+    { day: 0, hourly: [{ hour: 11, percent: 20 }] },
+    { day: 6, hourly: [{ hour: 19, percent: 85 }, { hour: 22, percent: 10 }] },
+  ],
+  hours: Array.from({ length: 7 }, (_, day) => ({ day, open: "10 am", close: "10 pm" })),
+};
+
+test("a chosen time reads that day and hour of the mall's usual week", () => {
+  const sundayMorning = readingAt(pattern, new Date(2026, 9, 25, 11, 0));
+  assert.equal(sundayMorning.crowdLevel, "Low");
+  assert.equal(sundayMorning.crowdPercent, 20);
+
+  const saturdayEvening = readingAt(pattern, new Date(2026, 9, 24, 19, 30));
+  assert.equal(saturdayEvening.crowdLevel, "Very High");
+});
+
+test("a chosen time outside opening hours, or with no bar, reads as closed", () => {
+  assert.equal(readingAt(pattern, new Date(2026, 9, 24, 22, 0)).crowdLevel, "Closed");
+  assert.equal(readingAt(pattern, new Date(2026, 9, 26, 15, 0)).crowdLevel, "Closed");
+});
+
+test("the meetup route rejects a meeting time that isn't within the next week", async () => {
+  const stationIds = ["admiralty-mrt", "aljunied-mrt"];
+  await withApp(
+    (app) => app.use("/meetup", meetupRouter),
+    async (baseUrl) => {
+      const day = 24 * 60 * 60 * 1000;
+      for (const at of ["not a date", 12, new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), new Date(Date.now() + 9 * day).toISOString()]) {
+        const res = await postJson(baseUrl, "/meetup", { stationIds, at });
+        assert.equal(res.status, 400, `at=${at}`);
+        assert.equal(res.body.error, "Choose a meeting time within the next week");
+      }
+    }
   );
 });
