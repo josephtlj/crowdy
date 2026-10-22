@@ -12,14 +12,21 @@ import { pool } from "../src/services/db";
 export const calls: { sql: string; params: unknown }[] = [];
 
 let nextRows: unknown[] = [];
+// Results handed out one per query, in order, before falling back to nextRows.
+const queued: unknown[] = [];
 
 export function setNextRows(rows: unknown[]): void {
   nextRows = rows;
 }
 
+export function queueResults(...results: unknown[]): void {
+  queued.push(...results);
+}
+
 export function resetFakePool(): void {
   calls.length = 0;
   nextRows = [];
+  queued.length = 0;
 }
 
 (pool as unknown as { query: (sql: string, params?: unknown) => Promise<unknown[]> }).query = async (
@@ -27,6 +34,7 @@ export function resetFakePool(): void {
   params?: unknown
 ) => {
   calls.push({ sql, params });
+  if (queued.length > 0) return [queued.shift()];
   if (/^\s*INSERT/i.test(sql)) return [{ insertId: 1 }];
   return [nextRows];
 };

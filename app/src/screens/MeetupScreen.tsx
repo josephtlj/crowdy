@@ -1,0 +1,325 @@
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+  ActivityIndicator,
+  Modal,
+} from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { Ionicons } from "@expo/vector-icons";
+import { RootStackParamList } from "../navigation/types";
+import { useTheme } from "../theme/ThemeContext";
+import { useLanguage } from "../i18n/LanguageContext";
+import { useAuth } from "../context/AuthContext";
+import * as api from "../services/api";
+import { FriendsOverview, MeetupPlan } from "../types/social";
+import { Venue } from "../types/venue";
+import { StationPicker } from "../components/StationPicker";
+import { CrowdBadge } from "../components/CrowdBadge";
+
+type Props = NativeStackScreenProps<RootStackParamList, "Meetup">;
+
+// The server accepts up to six starting points per plan.
+const MAX_PEOPLE = 6;
+
+interface Participant {
+  key: string;
+  label: string;
+  stationId: string | null;
+  // Set for "Me" and friends, so each can only be added once.
+  accountId?: number;
+}
+
+let nextKey = 0;
+const newKey = () => `p${nextKey++}`;
+
+// Meetup planner: add everyone's starting station (yourself, friends, or
+// anyone else), then get malls that are fair for everyone to reach by public
+// transport and not too crowded right now.
+export default function MeetupScreen({ navigation }: Props) {
+  const { colors } = useTheme();
+  const { t } = useLanguage();
+  const { token, username, accountId } = useAuth();
+
+  const [stations, setStations] = useState<Venue[]>([]);
+  const [friends, setFriends] = useState<FriendsOverview | null>(null);
+  const [people, setPeople] = useState<Participant[]>([]);
+  const [pickingFor, setPickingFor] = useState<string | null>(null);
+  const [friendChooserOpen, setFriendChooserOpen] = useState(false);
+  const [plan, setPlan] = useState<MeetupPlan | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const stationName = useMemo(() => new Map(stations.map((s) => [s.id, s.name])), [stations]);
+
+  useEffect(() => {
+    api
+      .getAllVenues()
+      .then((venues) => setStations(venues.filter((v) => v.category === "Transit")))
+      .catch(() => {});
+  }, []);
+
+  // Refreshed on focus so friends added on the Friends screen show up here.
+  useFocusEffect(
+    useCallback(() => {
+      if (!token) {
+        setFriends(null);
+        return;
+      }
+      api.getFriends(token).then(setFriends).catch(() => setFriends(null));
+    }, [token])
+  );
+
+  // Any change to the group makes the previous suggestions out of date.
+  function updatePeople(next: Participant[]) {
+    setPeople(next);
+    setPlan(null);
+    setFailed(false);
+  }
+
+  const hasMe = people.some((p) => p.accountId === accountId);
+  const full = people.length >= MAX_PEOPLE;
+  const ready = people.length >= 2 && people.every((p) => p.stationId);
+  const availableFriends = (friends?.friends ?? []).filter((f) => !people.some((p) => p.accountId === f.accountId));
+
+  function addMe() {
+    if (!accountId || !username) return;
+    updatePeople([
+      ...people,
+      { key: newKey(), label: t("meetup.me", { name: username }), stationId: friends?.homeStationId ?? null, accountId },
+    ]);
+  }
+
+  function addSomeone() {
+    const key = newKey();
+    const others = people.filter((p) => p.accountId === undefined).length;
+    updatePeople([...people, { key, label: t("meetup.person", { n: others + 1 }), stationId: null }]);
+    setPickingFor(key);
+  }
+
+  async function findPlaces() {
+    if (!ready) return;
+    setLoading(true);
+    setFailed(false);
+    setPlan(null);
+    try {
+      setPlan(await api.getMeetupSuggestions(people.map((p) => p.stationId!)));
+    } catch {
+      setFailed(true);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const card = [styles.card, { backgroundColor: colors.surface, borderColor: colors.border }];
+  const labelFor = (stationId: string) => people.find((p) => p.stationId === stationId)?.label ?? stationId;
+
+  return (
+    <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={styles.content}>
+      <Text style={[styles.intro, { color: colors.textMuted }]}>{t("meetup.intro")}</Text>
+
+      {people.length > 0 && (
+        <View style={card}>
+          {people.map((p) => (
+            <View key={p.key} style={styles.personRow}>
+              <View style={styles.personText}>
+                <Text style={[styles.name, { color: colors.text }]}>{p.label}</Text>
+                <TouchableOpacity onPress={() => setPickingFor(p.key)}>
+                  <Text style={[styles.station, { color: p.stationId ? colors.textMuted : colors.accent }]}>
+                    {p.stationId ? stationName.get(p.stationId) ?? p.stationId : t("meetup.chooseStation")}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity hitSlop={10} onPress={() => updatePeople(people.filter((x) => x.key !== p.key))}>
+                <Ionicons name="close-circle" size={22} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      )}
+
+      <View style={styles.addRow}>
+        {token && !hasMe && (
+          <TouchableOpacity disabled={full} onPress={addMe} style={[styles.chip, { borderColor: colors.border }]}>
+            <Ionicons name="person-outline" size={15} color={colors.text} />
+            <Text style={[styles.chipText, { color: colors.text }]}>{t("meetup.addMe")}</Text>
+          </TouchableOpacity>
+        )}
+        {token && (
+          <TouchableOpacity
+            disabled={full}
+            onPress={() => setFriendChooserOpen(true)}
+            style={[styles.chip, { borderColor: colors.border }]}
+          >
+            <Ionicons name="people-outline" size={15} color={colors.text} />
+            <Text style={[styles.chipText, { color: colors.text }]}>{t("meetup.addFriend")}</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity disabled={full} onPress={addSomeone} style={[styles.chip, { borderColor: colors.border }]}>
+          <Ionicons name="add" size={16} color={colors.text} />
+          <Text style={[styles.chipText, { color: colors.text }]}>{t("meetup.addSomeone")}</Text>
+        </TouchableOpacity>
+      </View>
+      {full && <Text style={[styles.hint, { color: colors.textMuted }]}>{t("meetup.max", { n: MAX_PEOPLE })}</Text>}
+
+      <TouchableOpacity
+        disabled={!ready || loading}
+        onPress={findPlaces}
+        style={[styles.findButton, { backgroundColor: colors.accent, opacity: !ready || loading ? 0.5 : 1 }]}
+      >
+        <Text style={styles.findText}>{t("meetup.find")}</Text>
+      </TouchableOpacity>
+      {!ready && <Text style={[styles.hint, { color: colors.textMuted }]}>{t("meetup.needTwo")}</Text>}
+
+      {loading && (
+        <View style={styles.status}>
+          <ActivityIndicator />
+          <Text style={[styles.hint, { color: colors.textMuted }]}>{t("meetup.finding")}</Text>
+        </View>
+      )}
+      {failed && (
+        <View style={styles.status}>
+          <Text style={[styles.hint, { color: colors.textMuted }]}>{t("meetup.failed")}</Text>
+          <TouchableOpacity onPress={findPlaces}>
+            <Text style={[styles.link, { color: colors.accent }]}>{t("directions.retry")}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {plan && (
+        <>
+          <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t("meetup.results")}</Text>
+          {plan.allClosed && <Text style={[styles.hint, { color: colors.textMuted }]}>{t("meetup.allClosed")}</Text>}
+          {plan.suggestions.map((s, i) => (
+            <TouchableOpacity
+              key={s.venueId}
+              style={card}
+              onPress={() => navigation.navigate("Detail", { venueId: s.venueId })}
+            >
+              <View style={styles.resultHead}>
+                <Text style={[styles.resultName, { color: colors.text }]} numberOfLines={1}>
+                  {i + 1}. {s.name}
+                </Text>
+                <CrowdBadge level={s.crowdLevel} />
+              </View>
+              <Text style={[styles.hint, { color: colors.textMuted }]}>
+                {t("meetup.summary", { max: s.maxMinutes, avg: s.avgMinutes })}
+              </Text>
+              <View style={styles.trips}>
+                {s.travel.map((trip, j) => (
+                  <Text key={j} style={[styles.trip, { color: colors.text, backgroundColor: colors.surfaceAlt }]}>
+                    {t("meetup.trip", {
+                      name: people[j]?.label ?? labelFor(trip.stationId),
+                      minutes: `${trip.estimated ? "≈" : ""}${trip.minutes}`,
+                    })}
+                  </Text>
+                ))}
+              </View>
+            </TouchableOpacity>
+          ))}
+          {plan.suggestions.some((s) => s.travel.some((trip) => trip.estimated)) && (
+            <Text style={[styles.hint, { color: colors.textMuted }]}>{t("meetup.estimatedNote")}</Text>
+          )}
+        </>
+      )}
+
+      <TouchableOpacity
+        onPress={() => (token ? navigation.navigate("Friends") : navigation.navigate("Settings"))}
+        style={styles.manage}
+      >
+        <Text style={[styles.link, { color: colors.accent }]}>
+          {token ? t("meetup.manageFriends") : t("meetup.signInForFriends")}
+        </Text>
+      </TouchableOpacity>
+
+      <StationPicker
+        visible={pickingFor !== null}
+        stations={stations}
+        onClose={() => setPickingFor(null)}
+        onSelect={(stationId) => {
+          updatePeople(people.map((p) => (p.key === pickingFor ? { ...p, stationId } : p)));
+          setPickingFor(null);
+        }}
+      />
+
+      <Modal
+        visible={friendChooserOpen}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setFriendChooserOpen(false)}
+      >
+        <View style={[styles.sheet, { backgroundColor: colors.background }]}>
+          <View style={styles.sheetHeader}>
+            <Text style={[styles.sheetTitle, { color: colors.text }]}>{t("meetup.pickFriend")}</Text>
+            <TouchableOpacity onPress={() => setFriendChooserOpen(false)} hitSlop={10}>
+              <Text style={[styles.link, { color: colors.accent }]}>{t("common.close")}</Text>
+            </TouchableOpacity>
+          </View>
+          {availableFriends.length === 0 ? (
+            <Text style={[styles.hint, styles.sheetEmpty, { color: colors.textMuted }]}>{t("meetup.noFriends")}</Text>
+          ) : (
+            availableFriends.map((f) => (
+              <TouchableOpacity
+                key={f.accountId}
+                style={[styles.sheetRow, { borderBottomColor: colors.border }]}
+                onPress={() => {
+                  updatePeople([
+                    ...people,
+                    { key: newKey(), label: f.username, stationId: f.homeStationId, accountId: f.accountId },
+                  ]);
+                  setFriendChooserOpen(false);
+                }}
+              >
+                <Text style={[styles.name, { color: colors.text }]}>{f.username}</Text>
+                <Text style={[styles.hint, { color: colors.textMuted }]}>
+                  {f.homeStationId ? stationName.get(f.homeStationId) ?? f.homeStationId : t("friends.noHome")}
+                </Text>
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+      </Modal>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  content: { padding: 16, paddingBottom: 40, gap: 12 },
+  intro: { fontSize: 14, lineHeight: 20 },
+  card: { padding: 14, borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, gap: 10 },
+  personRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  personText: { flex: 1, gap: 2 },
+  name: { fontSize: 15, fontWeight: "600" },
+  station: { fontSize: 14 },
+  addRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  chipText: { fontSize: 14, fontWeight: "500" },
+  findButton: { paddingVertical: 14, borderRadius: 10, alignItems: "center" },
+  findText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700" },
+  hint: { fontSize: 12.5, lineHeight: 18 },
+  status: { flexDirection: "row", alignItems: "center", gap: 10 },
+  link: { fontSize: 14, fontWeight: "600" },
+  sectionLabel: { fontSize: 12, fontWeight: "600", letterSpacing: 0.5, marginTop: 8 },
+  resultHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  resultName: { fontSize: 16, fontWeight: "700", flex: 1 },
+  trips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  trip: { fontSize: 13, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, overflow: "hidden" },
+  manage: { alignItems: "center", paddingVertical: 8 },
+  sheet: { flex: 1, paddingTop: 16 },
+  sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, marginBottom: 8 },
+  sheetTitle: { fontSize: 17, fontWeight: "700" },
+  sheetEmpty: { paddingHorizontal: 16 },
+  sheetRow: { paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, gap: 2 },
+});

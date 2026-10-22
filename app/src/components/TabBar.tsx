@@ -5,12 +5,13 @@ import { useTheme } from "../theme/ThemeContext";
 import { useLanguage } from "../i18n/LanguageContext";
 import { StringKey } from "../i18n/strings";
 
-export type TabKey = "areas" | "saved" | "search" | "settings";
+export type TabKey = "areas" | "saved" | "search" | "meetup" | "settings";
 
 const TABS: { key: TabKey; label: StringKey; icon: keyof typeof Ionicons.glyphMap }[] = [
   { key: "areas", label: "tab.areas", icon: "navigate-outline" },
   { key: "saved", label: "tab.saved", icon: "heart-outline" },
   { key: "search", label: "tab.search", icon: "search-outline" },
+  { key: "meetup", label: "tab.meetup", icon: "people-outline" },
   { key: "settings", label: "tab.settings", icon: "settings-outline" },
 ];
 
