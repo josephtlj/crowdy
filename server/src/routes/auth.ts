@@ -2,8 +2,13 @@ import { Router } from "express";
 import { pool } from "../services/db";
 import { hashPassword, verifyPassword, signToken } from "../services/auth";
 import { RowDataPacket } from "mysql2";
+import { rateLimit } from "../middleware/rateLimit";
 
 export const authRouter = Router();
+
+// 10 login/sign-up attempts per minute per client - plenty for a person,
+// too few to guess passwords.
+authRouter.use(rateLimit({ windowMs: 60_000, max: 10, message: "Too many attempts - wait a minute and try again" }));
 
 interface AccountRow extends RowDataPacket {
   id: number;

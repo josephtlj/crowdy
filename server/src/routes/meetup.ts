@@ -1,8 +1,13 @@
 import { Router } from "express";
 import { STATIONS } from "../data/stations";
 import { MEETUP_PRIORITIES, MeetupPriority, planMeetup } from "../services/meetup";
+import { rateLimit } from "../middleware/rateLimit";
 
 export const meetupRouter = Router();
+
+// Each plan can take dozens of OneMap lookups, so one client gets 10 plans
+// a minute.
+meetupRouter.use(rateLimit({ windowMs: 60_000, max: 10, message: "Too many meetup searches - wait a minute and try again" }));
 
 const STATION_IDS = new Set(STATIONS.map((s) => s.id));
 const MIN_PEOPLE = 2;

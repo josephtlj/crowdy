@@ -3,6 +3,7 @@ import { RowDataPacket, ResultSetHeader } from "mysql2";
 import { pool } from "../services/db";
 import { requireAuth } from "../middleware/requireAuth";
 import { STATIONS } from "../data/stations";
+import { rateLimit } from "../middleware/rateLimit";
 
 export const friendsRouter = Router();
 friendsRouter.use(requireAuth);
@@ -62,9 +63,14 @@ friendsRouter.get("/", async (_req, res) => {
   });
 });
 
+// Sending requests is limited so usernames can't be probed in bulk. The
+// "not found" reply is worded neutrally rather than confirming that no such
+// account exists.
+const requestLimit = rateLimit({ windowMs: 60_000, max: 20, message: "Too many friend requests - wait a minute and try again" });
+
 // POST /friends/requests { username } -> sends a friend request. If that
 // person had already sent this account a request, it is accepted instead.
-friendsRouter.post("/requests", async (req, res) => {
+friendsRouter.post("/requests", requestLimit, async (req, res) => {
   const me = res.locals.accountId as number;
   const { username } = req.body ?? {};
   if (typeof username !== "string" || username.trim().length === 0) {
@@ -73,7 +79,7 @@ friendsRouter.post("/requests", async (req, res) => {
 
   const [accounts] = await pool.query<AccountIdRow[]>("SELECT id FROM accounts WHERE username = ?", [username.trim()]);
   const other = accounts[0]?.id;
-  if (!other) return res.status(404).json({ error: "No account with that username" });
+  if (!other) return res.status(404).json({ error: "Couldn't send a friend request to that username" });
   if (other === me) return res.status(400).json({ error: "You can't add yourself" });
 
   const [existing] = await pool.query<FriendshipRow[]>(

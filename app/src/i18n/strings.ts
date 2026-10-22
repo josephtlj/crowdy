@@ -126,7 +126,6 @@ export const STRINGS = {
     "auth.taken": "This username is already taken",
     "source.GooglePopularTimes": "Google Popular Times",
     "source.LTA": "LTA",
-    "source.Mock": "Sample",
     "tab.meetup": "Meet up",
     "screen.meetup": "Meet up",
     "screen.friends": "Friends",
@@ -177,7 +176,7 @@ export const STRINGS = {
     "friends.noHome": "No home station set",
     "friends.loadFailed": "Couldn't load your friends.",
     "friends.retry": "Try again",
-    "friends.errNotFound": "No account with that username.",
+    "friends.errNotFound": "Couldn't send a friend request to that username.",
     "friends.errSelf": "You can't add yourself.",
     "friends.errAlready": "You're already friends.",
     "friends.errSent": "You've already sent them a request.",
@@ -190,6 +189,9 @@ export const STRINGS = {
     "meetup.quietHint": "Picks the quietest mall within reasonable reach.",
     "meetup.none": "Couldn't find any malls to suggest right now.",
     "station.loadFailed": "Couldn't load the station list.",
+    "auth.tooMany": "Too many attempts - wait a minute and try again.",
+    "friends.tooMany": "Too many friend requests - wait a minute and try again.",
+    "meetup.tooMany": "Too many searches - wait a minute and try again.",
   },
   zh: {
     "tab.areas": "附近",
@@ -314,7 +316,6 @@ export const STRINGS = {
     "auth.taken": "这个用户名已被使用",
     "source.GooglePopularTimes": "谷歌繁忙时段",
     "source.LTA": "陆交局",
-    "source.Mock": "示例",
     "tab.meetup": "约见",
     "screen.meetup": "约见面",
     "screen.friends": "好友",
@@ -365,7 +366,7 @@ export const STRINGS = {
     "friends.noHome": "未设置常用车站",
     "friends.loadFailed": "无法加载好友列表。",
     "friends.retry": "重试",
-    "friends.errNotFound": "没有使用该用户名的账号。",
+    "friends.errNotFound": "无法向该用户名发送好友请求。",
     "friends.errSelf": "不能添加自己。",
     "friends.errAlready": "你们已经是好友了。",
     "friends.errSent": "你已经向对方发送过请求。",
@@ -378,6 +379,9 @@ export const STRINGS = {
     "meetup.quietHint": "在合理距离内选择人最少的商场。",
     "meetup.none": "暂时找不到可推荐的商场。",
     "station.loadFailed": "无法加载车站列表。",
+    "auth.tooMany": "尝试次数过多，请稍等一分钟再试。",
+    "friends.tooMany": "好友请求过多，请稍等一分钟再试。",
+    "meetup.tooMany": "搜索次数过多，请稍等一分钟再试。",
   },
 } as const;
 
@@ -394,7 +398,9 @@ const SERVER_ERRORS: Record<string, StringKey> = {
   "This username is already taken": "auth.taken",
   "Something went wrong - try again.": "auth.generic",
   "Something went wrong — try again.": "auth.generic",
-  "No account with that username": "friends.errNotFound",
+  "Couldn't send a friend request to that username": "friends.errNotFound",
+  "Too many attempts - wait a minute and try again": "auth.tooMany",
+  "Too many friend requests - wait a minute and try again": "friends.tooMany",
   "You can't add yourself": "friends.errSelf",
   "You're already friends": "friends.errAlready",
   "Friend request already sent": "friends.errSent",
@@ -406,9 +412,7 @@ export function sourceLabel(source: string, language: Language): string {
       ? "source.GooglePopularTimes"
       : source === "LTA"
         ? "source.LTA"
-        : source === "Mock"
-          ? "source.Mock"
-          : null;
+        : null;
   return key ? STRINGS[language][key] : source;
 }
 

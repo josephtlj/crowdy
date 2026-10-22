@@ -64,7 +64,8 @@ export default function MeetupScreen({ navigation }: Props) {
   const [friendChooserOpen, setFriendChooserOpen] = useState(false);
   const [plan, setPlan] = useState<MeetupPlan | null>(null);
   const [loading, setLoading] = useState(false);
-  const [failed, setFailed] = useState(false);
+  // The message to show when a search fails, or null.
+  const [failed, setFailed] = useState<StringKey | null>(null);
 
   const stationName = useMemo(() => new Map(stations.map((s) => [s.id, s.name])), [stations]);
 
@@ -98,7 +99,7 @@ export default function MeetupScreen({ navigation }: Props) {
   function clearResults() {
     requestId.current++;
     setPlan(null);
-    setFailed(false);
+    setFailed(null);
     setLoading(false);
   }
 
@@ -126,13 +127,14 @@ export default function MeetupScreen({ navigation }: Props) {
     if (!ready) return;
     const id = ++requestId.current;
     setLoading(true);
-    setFailed(false);
+    setFailed(null);
     setPlan(null);
     try {
       const result = await api.getMeetupSuggestions(people.map((p) => p.stationId!), priority);
       if (id === requestId.current) setPlan(result);
-    } catch {
-      if (id === requestId.current) setFailed(true);
+    } catch (err) {
+      const tooMany = err instanceof api.ApiError && err.status === 429;
+      if (id === requestId.current) setFailed(tooMany ? "meetup.tooMany" : "meetup.failed");
     } finally {
       if (id === requestId.current) setLoading(false);
     }
@@ -229,7 +231,7 @@ export default function MeetupScreen({ navigation }: Props) {
       )}
       {failed && (
         <View style={styles.status}>
-          <Text style={[styles.hint, { color: colors.textMuted }]}>{t("meetup.failed")}</Text>
+          <Text style={[styles.hint, { color: colors.textMuted }]}>{t(failed)}</Text>
           <TouchableOpacity onPress={findPlaces}>
             <Text style={[styles.link, { color: colors.accent }]}>{t("directions.retry")}</Text>
           </TouchableOpacity>
