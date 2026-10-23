@@ -505,7 +505,7 @@ export default function HomeScreen({ navigation }: Props) {
                 colors={colors}
                 onOpenVenue={handleSeeDetails}
               />
-            ) : null
+            ) : undefined
           }
           ListEmptyComponent={
             <Text style={[styles.empty, { color: colors.textMuted }]}>
