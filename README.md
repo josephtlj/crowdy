@@ -112,6 +112,8 @@ Routes depend on service-layer functions (`getVenues()`, `refreshPopularTimesNow
 
 ## Setup Instructions
 
+Needs Node.js 22.13+, 24.3+ or 26+ (Expo SDK 58 doesn't support the odd-numbered 23 or 25).
+
 ### Backend Setup
 1. `cd server && npm install`
 2. Create `server/.env` with:
@@ -136,8 +138,9 @@ Only one machine scrapes Google Popular Times; every other backend reads the sha
 
 ### App Setup
 1. `cd app && npm install`
-2. `npx expo start` (or `npm run ios` / `npm run android` / `npm run web`)
-3. Scan the QR code with **Expo Go** (currently SDK 57) on the same Wi-Fi as the machine running the backend — the app resolves the backend's address automatically from Metro's own host, no manual config needed.
+2. `npx expo login` — Expo Go only opens a project when the computer and the phone are signed in to the same Expo account (browser sign-in, so Google accounts work).
+3. `npx expo start` (or `npm run ios` / `npm run android` / `npm run web`)
+4. Scan the QR code with **Expo Go** (SDK 58) on the same Wi-Fi as the machine running the backend — the app resolves the backend's address automatically from Metro's own host, no manual config needed. To use another machine's backend instead, set `EXPO_PUBLIC_API_BASE_URL=http://<its address>:4000` in `app/.env` and start with `npx expo start -c`.
 
 ### Running Tests
 - `cd server && npm test` — signup/login validation, favourites and friends routes, nearby alternatives, meetup ranking for each priority and meeting times, opening hours, rate limiting, plus the Lab 4 black-box (`alternatives.blackbox`) and basis path (`openingHours.basisPath`) cases. Uses an in-memory fake database, so it never touches the real one.
