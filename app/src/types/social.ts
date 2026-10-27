@@ -1,4 +1,5 @@
 import { CrowdLevel } from "./venue";
+import { Route } from "./directions";
 
 export interface Friend {
   accountId: number;
@@ -39,4 +40,17 @@ export interface MeetupSuggestion {
 export interface MeetupPlan {
   suggestions: MeetupSuggestion[];
   allClosed: boolean;
+}
+
+// "leave": every trip starts at the meeting time; "arrive": each starts early
+// enough to get there by it.
+export type RouteTiming = "leave" | "arrive";
+
+export interface GroupRoute {
+  stationId: string;
+  // null when OneMap couldn't plan the trip; minutes is then an estimate.
+  route: Route | null;
+  minutes: number;
+  leaveAt: string;
+  arriveAt: string;
 }

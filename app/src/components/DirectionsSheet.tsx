@@ -280,7 +280,7 @@ interface StepRowProps {
   surfaceAltColor: string;
 }
 
-function StepRow({ step, isLast, textColor, mutedColor, borderColor, surfaceAltColor }: StepRowProps) {
+export function StepRow({ step, isLast, textColor, mutedColor, borderColor, surfaceAltColor }: StepRowProps) {
   const { t, language } = useLanguage();
   const accent = step.lineColor ?? mutedColor;
 
@@ -348,7 +348,7 @@ function shortStationName(name: string): string {
   return name.replace(/\s+Station$/i, "");
 }
 
-function formatDuration(seconds: number, t: Translate): string {
+export function formatDuration(seconds: number, t: Translate): string {
   const minutes = Math.round(seconds / 60);
   if (minutes < 1) return t("duration.underMin");
   if (minutes < 60) return t("duration.min", { m: minutes });

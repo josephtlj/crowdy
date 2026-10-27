@@ -146,7 +146,7 @@ export const STRINGS = {
     "meetup.chooseStation": "Choose a starting station",
     "meetup.find": "Find places to meet",
     "meetup.needTwo": "Add at least two people, each with a starting station.",
-    "meetup.max": "Up to {n} people.",
+    "meetup.maxReached": "Maximum group size reached (max {n}).",
     "meetup.finding": "Checking everyone's travel time…",
     "meetup.failed": "Couldn't get suggestions right now.",
     "meetup.results": "SUGGESTED PLACES",
@@ -207,6 +207,17 @@ export const STRINGS = {
     "meetup.resultsAt": "SUGGESTED PLACES · {when}",
     "meetup.allClosedAt": "Every mall is usually closed then - try another time.",
     "meetup.badTime": "That time has passed - choose another.",
+    "meetup.seeRoutes": "See everyone's routes",
+    "screen.groupRoutes": "Everyone's routes",
+    "routes.leave": "Leave at {time}",
+    "routes.arrive": "Arrive by {time}",
+    "routes.leaveHint": "Everyone sets off at the meeting time.",
+    "routes.arriveHint": "Everyone sets off early enough to arrive by the meeting time.",
+    "routes.times": "Leave {leave} → arrive {arrive}",
+    "routes.estimated": "OneMap couldn't plan this trip - the time is an estimate.",
+    "routes.finding": "Planning everyone's routes…",
+    "routes.failed": "Couldn't get the routes right now.",
+    "routes.tapHint": "Tap someone to see their steps and highlight their route.",
   },
   zh: {
     "tab.areas": "附近",
@@ -351,7 +362,7 @@ export const STRINGS = {
     "meetup.chooseStation": "选择出发车站",
     "meetup.find": "寻找见面地点",
     "meetup.needTwo": "至少添加两人，并为每人选择出发车站。",
-    "meetup.max": "最多 {n} 人。",
+    "meetup.maxReached": "已达到人数上限（最多 {n} 人）。",
     "meetup.finding": "正在计算每个人的路程时间…",
     "meetup.failed": "暂时无法获取建议。",
     "meetup.results": "推荐地点",
@@ -412,6 +423,17 @@ export const STRINGS = {
     "meetup.resultsAt": "推荐地点 · {when}",
     "meetup.allClosedAt": "所有商场在该时段通常都已关闭，请换个时间试试。",
     "meetup.badTime": "该时间已过，请重新选择。",
+    "meetup.seeRoutes": "查看大家的路线",
+    "screen.groupRoutes": "大家的路线",
+    "routes.leave": "{time} 出发",
+    "routes.arrive": "{time} 前到达",
+    "routes.leaveHint": "大家都在约定时间出发。",
+    "routes.arriveHint": "大家提早出发，在约定时间前到达。",
+    "routes.times": "{leave} 出发 → {arrive} 到达",
+    "routes.estimated": "OneMap 无法规划此路线，时间为估计值。",
+    "routes.finding": "正在规划大家的路线…",
+    "routes.failed": "暂时无法获取路线。",
+    "routes.tapHint": "点击某人查看其路线步骤，并在地图上突出显示。",
   },
 } as const;
 
@@ -483,6 +505,18 @@ export function formatHoursDetail(detail: HoursStatusDetail, language: Language)
     case "opensOn":
       return text("hours.opensOn", { time: clock(detail.time), day: text(`day.${detail.day}` as StringKey) });
   }
+}
+
+/**
+ * A moment's time of day, e.g. "6:35 pm" (or 下午6:35).
+ * @param date - the moment, in the device's time zone
+ * @param language - the display language
+ * @returns the time label
+ */
+export function formatTime(date: Date, language: Language): string {
+  const hour = date.getHours();
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  return formatClock(`${hour % 12 || 12}:${minute} ${hour < 12 ? "am" : "pm"}`, language);
 }
 
 export function formatClock(raw: string, language: Language): string {

@@ -153,3 +153,21 @@ test("the meetup route rejects a meeting time that isn't within the next week", 
     }
   );
 });
+
+test("the group routes request checks the group, timing and meeting time first", async () => {
+  await withApp(
+    (app) => app.use("/meetup", meetupRouter),
+    async (baseUrl) => {
+      const lonely = await postJson(baseUrl, "/meetup/routes", { stationIds: ["admiralty-mrt"], venueId: "vivocity" });
+      assert.equal(lonely.status, 400);
+
+      const stationIds = ["admiralty-mrt", "aljunied-mrt"];
+      const badTiming = await postJson(baseUrl, "/meetup/routes", { stationIds, venueId: "vivocity", timing: "whenever" });
+      assert.equal(badTiming.status, 400);
+      assert.equal(badTiming.body.error, "timing must be one of: leave, arrive");
+
+      const badTime = await postJson(baseUrl, "/meetup/routes", { stationIds, venueId: "vivocity", at: "not a date" });
+      assert.equal(badTime.body.error, "Choose a meeting time within the next week");
+    }
+  );
+});

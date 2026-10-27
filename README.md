@@ -54,7 +54,7 @@ flowchart LR
 - **Accounts and favourites** — save venues on the device as a guest, or sign in to sync them across devices.
 - **In-app directions** — transit, walking, driving and cycling routes to a venue via OneMap, drawn on Crowdy's own map, with the live crowd level at each MRT/LRT station you board. *Implemented by Oscar.*
 - **Friends** — add friends by username, accept or decline requests, and set a home station. A friend's home station is only shared once both sides have accepted.
-- **Meetup planner** — pick 2–6 people (yourself, friends with a home station, or anyone by station), choose what matters most — *fairest trip* (no one travels much longer than the rest), *fastest overall* (lowest average trip) or *quietest* (least crowded mall within a reasonable trip) — and when you'll meet (now, or any hour up to a week ahead), and get the top 3 malls with each person's transit time and the mall's crowd level at that time. A later time uses each mall's usual crowd at that hour from its Popular Times week, and that time's train and bus timetable.
+- **Meetup planner** — pick 2–6 people (yourself, friends with a home station, or anyone by station), choose what matters most — *fairest trip* (no one travels much longer than the rest), *fastest overall* (lowest average trip) or *quietest* (least crowded mall within a reasonable trip) — and when you'll meet (now, or a day up to a week ahead with an hour on a slider), and get the top 3 malls with each person's transit time and the mall's crowd level at that time. A later time uses each mall's usual crowd at that hour from its Popular Times week, and that time's train and bus timetable. Signed-in people are listed first (you, then friends), then everyone else, and each person keeps one colour throughout. *See everyone's routes* on a suggestion shows each person's trip on one map in their colour, with leave and arrive times and step-by-step directions; with a meeting time chosen, everyone can either leave at that time or arrive by it.
 - **Light and dark mode** — follows the user's choice in Settings, remembered on the device along with the language.
 
 ## Tech Stack
@@ -184,6 +184,7 @@ Only one machine scrapes Google Popular Times; every other backend reads the sha
 
 ### Meetup — `/meetup` *(10 searches per minute per client)*
 - `POST /meetup` — `stationIds` (2–6 MRT/LRT station ids, one per person, repeats allowed), `priority` (`fair` (default), `fast` or `quiet`) and optionally `at` (an ISO date-time within the next week; left out means now). Shortlists malls by distance, looks up each person's transit time with OneMap (falling back to a marked estimate if a lookup fails), and returns the top 3 malls with every person's travel time and the mall's crowd level. With `at`, crowd levels are each mall's usual level at that hour and routes use that time's timetable. Also says when every mall with crowd data is closed at that time. No sign-in needed, so guests can use it too.
+- `POST /meetup/routes` — `stationIds` (as above, in list order), `venueId` (a mall), optionally `at` (as above) and `timing` (`leave` (default): every trip starts at `at`; `arrive`: each starts early enough to get there by it). Returns each person's public transport route with `minutes`, `leaveAt` and `arriveAt`, in the same order (`route` is null with an estimated `minutes` if OneMap can't plan a trip). Shares the meetup rate limit.
 
 ## External APIs & Services
 
@@ -228,7 +229,7 @@ crowdy/
 │   │   ├── components/      # Map, venue rows, crowd badge, tab bar, charts, station picker
 │   │   ├── context/         # AuthContext
 │   │   ├── navigation/      # React Navigation route types
-│   │   ├── screens/         # Home, Detail, Directions, Meetup, Friends, Settings
+│   │   ├── screens/         # Home, Detail, Directions, Meetup, GroupRoutes, Friends, Settings
 │   │   ├── services/        # api.ts (the only file that talks to the backend), local storage, distance/hours helpers
 │   │   ├── theme/           # Light/dark theme + dark map style
 │   │   └── types/           # Shared types (Venue, MapRegion, RailLineSegment, LayerState, friends and meetup)

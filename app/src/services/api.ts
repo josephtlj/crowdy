@@ -2,7 +2,7 @@ import { Platform } from "react-native";
 import Constants from "expo-constants";
 import { Venue } from "../types/venue";
 import { RailLineSegment } from "../types/railLine";
-import { FriendsOverview, MeetupPlan, MeetupPriority } from "../types/social";
+import { FriendsOverview, GroupRoute, MeetupPlan, MeetupPriority, RouteTiming } from "../types/social";
 import { Route, TravelMode } from "../types/directions";
 
 // Every screen talks to the app through this file only - screens never
@@ -352,4 +352,22 @@ export function setHomeStation(token: string, stationId: string | null): Promise
  */
 export function getMeetupSuggestions(stationIds: string[], priority: MeetupPriority, at?: Date): Promise<MeetupPlan> {
   return postJson("/meetup", { stationIds, priority, ...(at ? { at: at.toISOString() } : {}) });
+}
+
+/**
+ * Plans everyone's public transport trip to one suggested mall.
+ * @param stationIds - each person's starting station id, in list order
+ * @param venueId - the suggested mall
+ * @param at - the meeting time (ISO), or undefined for now
+ * @param timing - leave at the meeting time, or arrive by it
+ * @returns one route per person, in the same order
+ */
+export async function getGroupRoutes(
+  stationIds: string[],
+  venueId: string,
+  at: string | undefined,
+  timing: RouteTiming
+): Promise<GroupRoute[]> {
+  const result = await postJson<{ routes: GroupRoute[] }>("/meetup/routes", { stationIds, venueId, at, timing });
+  return result.routes;
 }
