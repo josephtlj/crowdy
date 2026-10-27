@@ -190,6 +190,13 @@ export default function HomeScreen({ navigation }: Props) {
   );
 
   const listRef = useRef<FlatList<Venue>>(null);
+  // The map area the list is held to while a venue is selected (see
+  // toggleSelection), and the latest map area to take it from.
+  const frozenRegionRef = useRef<MapRegion | null>(null);
+  const regionRef = useRef(region);
+  regionRef.current = region;
+  // A venue picked on the map that the list should scroll to once.
+  const scrollToRef = useRef<string | null>(null);
 
   // The list sheet rests where it always has - just over the bottom of the
   // map - and can be dragged up to just below the "Crowdy" title and back
@@ -248,8 +255,30 @@ export default function HomeScreen({ navigation }: Props) {
   // is the same function reference across every render, letting it be
   // handed to every row as a stable prop instead of a fresh per-row closure
   // - required for VenueRow's memoization to actually skip unchanged rows.
+  //
+  // While a venue is selected the Areas list stays filtered to the map area
+  // from the moment of selecting (frozenRegionRef), so the map moving to the
+  // venue doesn't add and remove rows around it. Deselecting lets the list
+  // catch up with the map again.
   const toggleSelection = useCallback((venueId: string) => {
+    if (!frozenRegionRef.current) frozenRegionRef.current = regionRef.current;
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setSelectedVenueId((current) => (current === venueId ? null : venueId));
+  }, []);
+
+  // A pin tapped on the map may be far down the list, so the list scrolls to
+  // it once. A tapped row is already on screen, so the list stays put.
+  const selectFromMap = useCallback(
+    (venueId: string) => {
+      scrollToRef.current = venueId;
+      toggleSelection(venueId);
+    },
+    [toggleSelection]
+  );
+
+  const clearSelection = useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setSelectedVenueId(null);
   }, []);
 
   const handleSeeDetails = useCallback(
@@ -324,16 +353,17 @@ export default function HomeScreen({ navigation }: Props) {
   // the whole list by a new centre point, which is what made it feel like
   // it was jumping around; sorting by a point that doesn't move means a pan
   // only adds/removes rows at the ends instead of reshuffling everything.
+  const listRegion = selectedVenueId && frozenRegionRef.current ? frozenRegionRef.current : region;
   const visibleVenues = useMemo(() => {
-    if (Platform.OS === "web" || !region) return venues;
+    if (Platform.OS === "web" || !listRegion) return venues;
     return venues
-      .filter((venue) => isWithinRegion(venue, region))
+      .filter((venue) => isWithinRegion(venue, listRegion))
       .map((venue) => ({
         ...venue,
         distanceKm: userLocation ? haversineKm(userLocation.lat, userLocation.lng, venue.lat, venue.lng) : undefined,
       }))
       .sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0));
-  }, [venues, region, userLocation]);
+  }, [venues, listRegion, userLocation]);
 
   // Searches the full known venue list (not just what's in the map's
   // current viewport, unlike Areas), same as search - a saved venue should
@@ -389,6 +419,9 @@ export default function HomeScreen({ navigation }: Props) {
   // would recompute them - LayoutAnimation only affects whatever layout
   // change happens in the very next commit.
   const handleRegionChange = (nextRegion: MapRegion) => {
+    // The list is held still while a venue is selected, so there is
+    // nothing to animate.
+    if (selectedVenueId) return setRegion(nextRegion);
     const nextVisibleIds = new Set(
       venues.filter((v) => isWithinRegion(v, nextRegion) && isVenueInLayers(v, layers)).map((v) => v.id)
     );
@@ -401,18 +434,21 @@ export default function HomeScreen({ navigation }: Props) {
     setRegion(nextRegion);
   };
 
-  // Selecting a venue re-centres the map on it, which changes which venues
-  // are in view - but the list is now sorted by distance from the User, not
-  // from the selected venue, so the selected one isn't guaranteed to land
-  // at the top of the list any more (that was only ever incidental to the
-  // old viewport-centre sort). Scrolls to wherever it actually ended up
-  // instead of assuming position 0, so the User doesn't hunt for it.
+  // Scrolls once to a venue picked on the map (see selectFromMap). Runs on
+  // the selection only, not on every list change, so the list doesn't keep
+  // pulling back to it.
   useEffect(() => {
-    if (!selectedVenueId) return;
+    if (!selectedVenueId) {
+      frozenRegionRef.current = null;
+      return;
+    }
+    if (scrollToRef.current !== selectedVenueId) return;
+    scrollToRef.current = null;
     const index = listData.findIndex((v) => v.id === selectedVenueId);
     if (index === -1) return; // filtered out of the current view - nothing to scroll to
     listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0 });
-  }, [selectedVenueId, listData]);
+  }, [selectedVenueId]);
+
 
   if (loading || !region) {
     return (
@@ -431,8 +467,8 @@ export default function HomeScreen({ navigation }: Props) {
         layers={layers}
         onToggleLayer={handleToggleLayer}
         selectedVenueId={selectedVenueId}
-        onSelectVenue={toggleSelection}
-        onDeselect={() => setSelectedVenueId(null)}
+        onSelectVenue={selectFromMap}
+        onDeselect={clearSelection}
         onRegionChange={handleRegionChange}
       />
 
@@ -478,11 +514,11 @@ export default function HomeScreen({ navigation }: Props) {
             activeTab === "search" && searchListHeight != null && { flex: 0, height: searchListHeight },
           ]}
           // While resting, the bottom of the sheet sits below the screen.
-          contentContainerStyle={{ paddingBottom: raised ? 0 : Math.max(0, restingTop - raisedTop) }}
+          contentContainerStyle={{ paddingTop: 8, paddingBottom: raised ? 0 : Math.max(0, restingTop - raisedTop) }}
           data={listData}
           keyExtractor={(item) => item.id}
           extraData={[selectedVenueId, savedIds]}
-          // Rows have variable height (they expand when selected), so
+          // Rows have variable height (the selected one expands), so
           // FlatList can't always measure a far-off-screen target on the
           // first attempt - land approximately, then real positions settle
           // in as more rows render.

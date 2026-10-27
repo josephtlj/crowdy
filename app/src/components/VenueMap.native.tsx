@@ -258,6 +258,9 @@ export function VenueMap({
               coordinate={{ latitude: venue.lat, longitude: venue.lng }}
               anchor={{ x: 0.5, y: 0.5 }}
               onPress={() => onSelectVenue(venue.id)}
+              // The selected dot sits above the others, which fade right back
+              // so it stands out even where dots overlap.
+              zIndex={isSelected ? 1 : 0}
               // No title/description: the native callout bubble this would
               // otherwise show is redundant now that selecting a venue expands
               // its info inline in the list below instead.

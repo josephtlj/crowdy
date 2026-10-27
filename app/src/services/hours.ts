@@ -1,5 +1,5 @@
 // Shared by VenueHours (the mall Detail-screen dropdown) and VenueRow (the
-// inline transit summary line) so both read the same `hours` field the
+// summary line in an expanded home list card) so both read the same `hours` field the
 // same way - previously this lived only in VenueHours.tsx.
 export interface OpenHoursEntry {
   day: number; // 0=Sun..6=Sat

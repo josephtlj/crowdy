@@ -466,11 +466,29 @@ async function scrapePopularTimesAttempt(venueName: string): Promise<ScrapeAttem
     // days). Format: "Wednesday, 10 am to 10 pm, Copy open hours" - a day
     // with no matching label (closed that day) is simply absent, same
     // convention as a closed hour being absent from the Popular Times data.
-    const hoursLabels = await page.evaluate(() =>
-      Array.from(document.querySelectorAll("[aria-label]"))
-        .map((el) => el.getAttribute("aria-label"))
-        .filter((l): l is string => !!l && /^\w+, .+ to .+, Copy open hours$/i.test(l))
-    );
+    const readHoursLabels = () =>
+      page.evaluate(() =>
+        Array.from(document.querySelectorAll("[aria-label]"))
+          .map((el) => el.getAttribute("aria-label"))
+          .filter((l): l is string => !!l && /^\w+, .+ to .+, Copy open hours$/i.test(l))
+      );
+    let hoursLabels = await readHoursLabels();
+    // Some places (e.g. Sim Lim Square, Ngee Ann City) only show a folded
+    // "Opens 10 am · See more hours" line, with the week's labels rendered
+    // only after it is clicked.
+    if (hoursLabels.length === 0) {
+      const opened = await page.evaluate(() => {
+        const button = Array.from(document.querySelectorAll("[aria-label]")).find((el) =>
+          /see more hours/i.test(el.getAttribute("aria-label") ?? "")
+        ) as HTMLElement | undefined;
+        button?.click();
+        return !!button;
+      });
+      if (opened) {
+        await sleep(1500);
+        hoursLabels = await readHoursLabels();
+      }
+    }
     const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
     let hours: OpenHoursEntry[] = hoursLabels
       .map((label) => {
@@ -480,7 +498,10 @@ async function scrapePopularTimesAttempt(venueName: string): Promise<ScrapeAttem
         if (day === -1) return null;
         return { day, open: m[2].trim(), close: m[3].trim() };
       })
-      .filter((x): x is OpenHoursEntry => x !== null);
+      .filter((x): x is OpenHoursEntry => x !== null)
+      // The expanded view can list a second set of hours (e.g. pick-up) after
+      // the place's own, so only the first entry for each day is kept.
+      .filter((entry, i, all) => all.findIndex((e) => e.day === entry.day) === i);
 
     // A round-the-clock venue (e.g. Mustafa Centre, Jewel Changi Airport)
     // has no close time, so Google never renders the "Day, X to Y" labels
