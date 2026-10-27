@@ -16,7 +16,10 @@ import { closeBrowser } from "./services/popularTimes";
 import { pool } from "./services/db";
 
 const app = express();
-app.use(cors());
+app.disable("x-powered-by");
+// The phone app sends no Origin header, so CORS only limits browsers: allow
+// the local web build (npm run web) and nothing else.
+app.use(cors({ origin: /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/ }));
 app.use(express.json());
 
 app.use("/venues", venuesRouter);
