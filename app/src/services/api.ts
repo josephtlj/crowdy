@@ -156,6 +156,24 @@ export async function refreshPopularTimesForVenue(venueId: string): Promise<Popu
   }
 }
 
+/**
+ * What a manual refresh did: scraped just now ("updated"), skipped because it was refreshed
+ * in the last 15 minutes ("recent"), fetched the latest shared data ("shared"), or failed
+ * and kept the last reading ("failed").
+ */
+export type ManualRefreshStatus = "updated" | "recent" | "shared" | "failed";
+
+/**
+ * Asks the server to refresh a mall's Popular Times now, when the user taps Refresh.
+ * @param venueId - the mall's id
+ * @returns the reading and what the refresh did; throws ApiError (429 when refreshed too often)
+ */
+export function refreshPopularTimesManually(
+  venueId: string
+): Promise<PopularTimesRefresh & { status: ManualRefreshStatus }> {
+  return postJson(`/venues/${venueId}/popular-times/refresh`, {});
+}
+
 // One mode at a time, fetched as the User switches tabs on the Directions
 // screen - each mode is its own OneMap lookup server-side, so requesting
 // all four upfront would pay for three journeys nobody asked to see.

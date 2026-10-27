@@ -540,25 +540,70 @@ export async function refreshPopularTimesNow(
 ): Promise<(CurrentReading & { scrapedAt: number }) | null> {
   const latest = getLatestPopularTimes(venueId);
   if (!isScrapingEnabled() || (latest && Date.now() - latest.scrapedAt < PATTERN_MAX_AGE_MS)) return latest;
+  return (await scrapeOnDemand(venueId, venueName)) ?? latest;
+}
 
-  const result = await scrapePopularTimes(venueName).then(
-    (attempt) => attempt.result,
-    (err) => {
-      console.error(`Popular Times: refresh failed for "${venueName}" - ${errorMessage(err)}`);
-      return null;
-    }
-  );
+// Scrapes one venue now and records it, or returns null if the scrape
+// fails. A failed on-demand check (e.g. Google rate-limiting this request,
+// or serving its limited view without the chart) never erases what was
+// already cached - callers fall back to that instead of "Unavailable".
+// Two requests for the same venue at once share one scrape.
+const inFlight = new Map<string, Promise<(CurrentReading & { scrapedAt: number }) | null>>();
 
-  if (result) {
-    const scrapedAt = Date.now();
-    recordEntry(venueId, { result, timestamp: scrapedAt });
-    return { ...readingAt(result, new Date()), scrapedAt };
+function scrapeOnDemand(venueId: string, venueName: string): Promise<(CurrentReading & { scrapedAt: number }) | null> {
+  const running = inFlight.get(venueId);
+  if (running) return running;
+  const attempt = scrapePopularTimes(venueName)
+    .then(
+      ({ result }) => {
+        if (!result) return null;
+        const scrapedAt = Date.now();
+        recordEntry(venueId, { result, timestamp: scrapedAt });
+        return { ...readingAt(result, new Date()), scrapedAt };
+      },
+      (err) => {
+        console.error(`Popular Times: refresh failed for "${venueName}" - ${errorMessage(err)}`);
+        return null;
+      }
+    )
+    .finally(() => inFlight.delete(venueId));
+  inFlight.set(venueId, attempt);
+  return attempt;
+}
+
+// A venue refreshed this recently isn't scraped again on request: its
+// typical week can't have changed, and it keeps repeated taps from adding
+// page loads on the signed-in account.
+export const MANUAL_REFRESH_COOLDOWN_MS = 15 * 60 * 1000;
+
+/**
+ * What a manual refresh did: "updated" (scraped just now), "recent" (refreshed within
+ * the cooldown, so not scraped again), "shared" (this backend doesn't scrape, so it
+ * fetched the latest shared data instead), or "failed" (the last reading is kept).
+ */
+export type ManualRefreshStatus = "updated" | "recent" | "shared" | "failed";
+
+/**
+ * Refreshes a venue's Popular Times when a user asks to, whatever the pattern's age.
+ * On a backend that doesn't scrape, pulls the latest shared data from the database.
+ * @param venueId - the venue's id
+ * @param venueName - the venue's name, used to find it on Google Maps
+ * @returns the reading (null if the venue has never been scraped) and what happened
+ */
+export async function refreshPopularTimesOnRequest(
+  venueId: string,
+  venueName: string
+): Promise<{ reading: (CurrentReading & { scrapedAt: number }) | null; status: ManualRefreshStatus }> {
+  if (!isScrapingEnabled()) {
+    await syncPopularTimesWithDb();
+    return { reading: getLatestPopularTimes(venueId), status: "shared" };
   }
-
-  // A failed on-demand check (e.g. Google rate-limiting this request, or
-  // serving its limited view without the chart) shouldn't erase what was already
-  // cached - fall back to serving that instead of "Unavailable".
-  return latest;
+  const latest = getLatestPopularTimes(venueId);
+  if (latest && Date.now() - latest.scrapedAt < MANUAL_REFRESH_COOLDOWN_MS) {
+    return { reading: latest, status: "recent" };
+  }
+  const fresh = await scrapeOnDemand(venueId, venueName);
+  return fresh ? { reading: fresh, status: "updated" } : { reading: latest, status: "failed" };
 }
 
 // The most recent reading this venue has ever had, however old. Popular

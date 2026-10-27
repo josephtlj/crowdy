@@ -11,14 +11,15 @@ import { scrapeVenue, syncPopularTimesWithDb, venuesDueForScrape } from "./popul
 // google-signin). Every other backend just syncs with the shared database.
 //
 // It's paced rather than batched - one due mall at a time, stalest first,
-// with a gap of PAGE_GAP_MS between pages, so all 104 take about two hours
-// rather than a burst of 104 pages in half an hour, the kind of pattern
-// most likely to get the signed-in account challenged. It runs at any hour:
+// with a random 15-25s gap between pages (a scrape itself takes about 10s),
+// so all 104 take about 50 minutes rather than a burst of back-to-back
+// pages, the kind of pattern most likely to get the signed-in account
+// challenged. The random gap keeps the timing from looking scripted. It runs at any hour:
 // signed in, Google shows the chart even after a mall has closed (confirmed
 // on VivoCity at 22:53). Any mall not reached yet keeps serving its last
 // pattern, and a backend restarted partway carries on from the stalest.
 const CHECK_INTERVAL_MS = 60 * 60 * 1000;
-const PAGE_GAP_MS = { min: 45 * 1000, jitter: 15 * 1000 };
+const PAGE_GAP_MS = { min: 15 * 1000, jitter: 10 * 1000 };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
