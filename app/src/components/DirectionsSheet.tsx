@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -85,6 +85,10 @@ export function DirectionsSheet({
   // re-lays-out the step list underneath it.
   const raise = useRef(new Animated.Value(0)).current;
   const raised = useRef(false);
+  // The same, as state - while collapsed the bottom `travel` of the sheet is
+  // below the screen, so the step list gets that much extra bottom padding
+  // to let its last steps scroll into view.
+  const [isRaised, setIsRaised] = useState(false);
 
   const panResponder = useMemo(
     () =>
@@ -102,6 +106,7 @@ export function DirectionsSheet({
           const shouldRaise = movedFarEnough ? draggedUp : raised.current;
 
           raised.current = shouldRaise;
+          setIsRaised(shouldRaise);
           Animated.spring(raise, {
             toValue: shouldRaise ? travel : 0,
             useNativeDriver: false,
@@ -187,6 +192,7 @@ export function DirectionsSheet({
         borderColor={colors.border}
         accentColor={colors.accent}
         surfaceAltColor={colors.surfaceAlt}
+        bottomPadding={isRaised ? 0 : travel}
       />
     </Animated.View>
   );
@@ -202,6 +208,7 @@ interface BodyProps {
   borderColor: string;
   accentColor: string;
   surfaceAltColor: string;
+  bottomPadding: number;
 }
 
 function SheetBody({
@@ -214,6 +221,7 @@ function SheetBody({
   borderColor,
   accentColor,
   surfaceAltColor,
+  bottomPadding,
 }: BodyProps) {
   const { t } = useLanguage();
   if (loading) {
@@ -254,7 +262,7 @@ function SheetBody({
         </Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.steps}>
+      <ScrollView contentContainerStyle={[styles.steps, { paddingBottom: 18 + bottomPadding }]}>
         {route.steps.map((step, index) => (
           <StepRow
             key={index}
