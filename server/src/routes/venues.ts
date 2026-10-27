@@ -65,7 +65,9 @@ venuesRouter.get("/:id/popular-times", async (req, res) => {
     return res.status(404).json({ error: "Popular Times not available for this venue right now" });
   }
   const { scrapedAt, ...reading } = result;
-  res.json({ ...reading, lastUpdated: new Date(scrapedAt).toISOString() });
+  // venue.hours already falls back to known hours when Google lists none.
+  const hours = reading.hours.length ? reading.hours : venue.hours;
+  res.json({ ...reading, hours, lastUpdated: new Date(scrapedAt).toISOString() });
 });
 
 // A few manual refreshes a minute per client - each one can be a real page
@@ -87,5 +89,6 @@ venuesRouter.post("/:id/popular-times/refresh", refreshLimit, async (req, res) =
     return res.status(404).json({ error: "Popular Times not available for this venue right now" });
   }
   const { scrapedAt, ...rest } = reading;
-  res.json({ ...rest, lastUpdated: new Date(scrapedAt).toISOString(), status });
+  const hours = rest.hours.length ? rest.hours : venue.hours;
+  res.json({ ...rest, hours, lastUpdated: new Date(scrapedAt).toISOString(), status });
 });

@@ -17,7 +17,7 @@ export function StationDot({ level, dimmed = false }: Props) {
     <View
       style={[
         styles.dot,
-        { backgroundColor: CROWD_COLORS[level], opacity: dimmed ? 0.3 : 1 },
+        { backgroundColor: CROWD_COLORS[level], opacity: dimmed ? 0.12 : 1 },
       ]}
     />
   );

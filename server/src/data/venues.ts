@@ -5,7 +5,7 @@ import { STATION_HOURS } from "./stationHours";
 import { fetchStationCrowdLevels, mapCrowdCode } from "../services/lta";
 import { fetchLtaCarparkRecords } from "../services/carparks";
 import { spreadOverlappingVenues } from "../services/declutter";
-import { getLatestPopularTimes } from "../services/popularTimes";
+import { getLatestPopularTimes, OpenHoursEntry } from "../services/popularTimes";
 import { HEATMAP_RADII_M, STATION_HEATMAP_RADII_M } from "../services/heatmap";
 
 // Last 6-digit group, so a street number earlier in the address is ignored.
@@ -35,6 +35,12 @@ export function postalCodeFromAddress(address: string): string | undefined {
 // serving a limited view of Maps without the chart). `lastUpdated` is the scrape time
 // rather than now, so the app can show how old the pattern is. Only a mall
 // that has never been scraped successfully shows "Unavailable".
+// Opening hours for malls whose Google listing has none of its own (Funan's
+// page only lists its shops' hours). Used only when a scrape found no hours.
+const FALLBACK_HOURS: Record<string, OpenHoursEntry[]> = {
+  funan: Array.from({ length: 7 }, (_, day) => ({ day, open: "10 am", close: "10 pm" })),
+};
+
 async function getMallVenues(): Promise<Venue[]> {
   const now = new Date().toISOString();
 
@@ -67,7 +73,7 @@ async function getMallVenues(): Promise<Venue[]> {
       lastUpdated: popularTimes ? new Date(popularTimes.scrapedAt).toISOString() : now,
       carparks,
       hourly: popularTimes?.hourly,
-      hours: popularTimes?.hours,
+      hours: popularTimes?.hours?.length ? popularTimes.hours : FALLBACK_HOURS[mall.id],
       heatmapRadiusM: HEATMAP_RADII_M.get(mall.id),
     };
     return venue;
