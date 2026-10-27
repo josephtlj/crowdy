@@ -8,6 +8,8 @@ import {
   getVenueById,
   getAlternatives,
   refreshPopularTimesForVenue,
+  refreshPopularTimesManually,
+  ManualRefreshStatus,
   getFavourites,
   saveFavourite,
   unsaveFavourite,
@@ -21,7 +23,14 @@ import { formatUpdatedAt } from "../services/updatedAt";
 import { useTheme } from "../theme/ThemeContext";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../i18n/LanguageContext";
-import { sourceLabel } from "../i18n/strings";
+import { sourceLabel, StringKey } from "../i18n/strings";
+
+const REFRESH_NOTES: Record<ManualRefreshStatus, StringKey> = {
+  updated: "detail.refreshUpdated",
+  recent: "detail.refreshRecent",
+  shared: "detail.refreshShared",
+  failed: "detail.refreshFailed",
+};
 
 type Props = NativeStackScreenProps<RootStackParamList, "Detail">;
 
@@ -34,6 +43,8 @@ export default function DetailScreen({ route, navigation }: Props) {
   const [alternatives, setAlternatives] = useState<Venue[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshingCrowd, setRefreshingCrowd] = useState(false);
+  // What the last tap on Refresh did, shown under the Updated line.
+  const [refreshNote, setRefreshNote] = useState<StringKey | null>(null);
   const [selectedHour, setSelectedHour] = useState(new Date().getHours());
   const [saved, setSaved] = useState(false);
 
@@ -121,6 +132,23 @@ export default function DetailScreen({ route, navigation }: Props) {
     })();
   }, [venueId]);
 
+  // The user tapped Refresh: scrape this mall now (or fetch the latest shared
+  // data on a backend that doesn't scrape) and say what happened.
+  async function refreshNow() {
+    if (refreshingCrowd) return;
+    setRefreshingCrowd(true);
+    setRefreshNote(null);
+    try {
+      const { status, ...fresh } = await refreshPopularTimesManually(venueId);
+      setVenue((current) => (current && current.id === venueId ? { ...current, ...fresh } : current));
+      setRefreshNote(REFRESH_NOTES[status]);
+    } catch (err) {
+      setRefreshNote(err instanceof ApiError && err.status === 429 ? "detail.refreshTooMany" : "detail.refreshFailed");
+    } finally {
+      setRefreshingCrowd(false);
+    }
+  }
+
   if (loading) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
@@ -166,19 +194,34 @@ export default function DetailScreen({ route, navigation }: Props) {
       </View>
 
       <View style={styles.updatedRow}>
-        <Text style={[styles.updated, { color: colors.textMuted }]}>
+        <Text style={[styles.updated, styles.updatedText, { color: colors.textMuted }]}>
           {t("detail.updated", {
             time: formatUpdatedAt(venue.lastUpdated, language),
             source: sourceLabel(venue.source, language),
           })}
         </Text>
-        {refreshingCrowd && (
-          <>
-            <ActivityIndicator size="small" style={styles.updatedSpinner} />
-            <Text style={[styles.updated, { color: colors.textMuted }]}>{t("detail.refreshing")}</Text>
-          </>
+        {/* Malls only - station crowds come live from LTA and need no refresh. */}
+        {venue.category !== "Transit" && (
+          <TouchableOpacity
+            onPress={refreshNow}
+            disabled={refreshingCrowd}
+            style={[styles.refreshPill, { borderColor: colors.accent, opacity: refreshingCrowd ? 0.6 : 1 }]}
+            accessibilityLabel={t("detail.refresh")}
+          >
+            {refreshingCrowd ? (
+              <ActivityIndicator size="small" color={colors.accent} />
+            ) : (
+              <Ionicons name="refresh" size={13} color={colors.accent} />
+            )}
+            <Text style={[styles.refreshLabel, { color: colors.accent }]}>
+              {refreshingCrowd ? t("detail.refreshing") : t("detail.refresh")}
+            </Text>
+          </TouchableOpacity>
         )}
       </View>
+      {refreshNote && (
+        <Text style={[styles.updated, styles.refreshNote, { color: colors.textMuted }]}>{t(refreshNote)}</Text>
+      )}
 
       <TouchableOpacity
         style={[styles.directionsButton, { backgroundColor: colors.accent }]}
@@ -260,9 +303,20 @@ const styles = StyleSheet.create({
   address: { fontSize: 14, marginTop: 4 },
   crowdRow: { flexDirection: "row", alignItems: "center", marginTop: 16, gap: 10 },
   percent: { fontSize: 14 },
-  updatedRow: { flexDirection: "row", alignItems: "center", marginTop: 8 },
+  updatedRow: { flexDirection: "row", alignItems: "center", marginTop: 8, gap: 10 },
   updated: { fontSize: 12 },
-  updatedSpinner: { marginLeft: 10, marginRight: 6 },
+  updatedText: { flex: 1 },
+  refreshPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  refreshLabel: { fontSize: 12.5, fontWeight: "600" },
+  refreshNote: { marginTop: 6 },
   directionsButton: {
     flexDirection: "row",
     alignItems: "center",

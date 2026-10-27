@@ -157,6 +157,7 @@ Only one machine scrapes Google Popular Times; every other backend reads the sha
 - `GET /venues/:id` — single venue detail
 - `GET /venues/:id/alternatives` — lower-crowd venues of the same category within 3km
 - `GET /venues/:id/popular-times` — the venue's Popular Times reading, scraping it first (~15-20s) if its pattern is over a week old and this backend scrapes
+- `POST /venues/:id/popular-times/refresh` — the Refresh button on a mall's page: scrapes it now unless it was refreshed in the last 15 minutes, or on a backend that doesn't scrape, pulls the latest shared data. Returns the reading plus `status` (`updated`, `recent`, `shared` or `failed`). 5 per minute per client
 
 ### Lines — `/lines`
 - `GET /lines` — static MRT/LRT rail alignment geometry
@@ -190,7 +191,7 @@ Only one machine scrapes Google Popular Times; every other backend reads the sha
 Official real-time MRT/LRT platform crowd density, and live carpark lot counts (shown as a bonus stat, not used to derive crowd level).
 
 ### Google Popular Times
-No official API exists for this, so the backend drives a headless Chrome through the same flow a person browsing Google Maps would. Google only shows Popular Times to signed-in visitors, so it runs on a Chrome profile signed in to the project's Google account, on one machine only. It refreshes any mall whose pattern is over a week old, one mall about every minute, so all 104 take about two hours — a pattern is a typical week, so weekly is plenty, and the steady pace avoids bursts of traffic on the account. Opening a mall in the app also refreshes it if its pattern is due.
+No official API exists for this, so the backend drives a headless Chrome through the same flow a person browsing Google Maps would. Google only shows Popular Times to signed-in visitors, so it runs on a Chrome profile signed in to the project's Google account, on one machine only. It refreshes any mall whose pattern is over a week old, one mall at a time with a random 15–25 second pause between them (a scrape itself takes about 10 seconds), so all 104 take about 50 minutes — a pattern is a typical week, so weekly is plenty, and the paced, randomised timing avoids bursts of traffic on the account. Opening a mall in the app also refreshes it if its pattern is due, and the Refresh button on a mall's page refreshes it on request.
 
 ### OneMap
 Two separate uses of the same free government service:
