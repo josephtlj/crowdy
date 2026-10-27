@@ -29,6 +29,8 @@ const FIT_PADDING = 40;
 // Metro picks this file on iOS/Android; GroupRouteMap.web.tsx is the web
 // fallback. Each person's whole trip is drawn in their own colour (walking
 // legs dashed), so the routes read as people rather than as train lines.
+// The highlighted person's trip switches to its real line colours (MRT
+// lines, bus, walking), the same as on the Directions screen.
 export function GroupRouteMap({ destination, destinationName, lines, highlighted, bottomInset }: Props) {
   const { mode } = useTheme();
   const mapRef = useRef<MapView>(null);
@@ -66,7 +68,8 @@ export function GroupRouteMap({ destination, destinationName, lines, highlighted
         const line = lines[i];
         const faded = highlighted !== null && highlighted !== i;
         const color = faded ? `${line.color}55` : line.color;
-        const width = highlighted === i ? 6 : 4;
+        const detailed = highlighted === i;
+        const width = detailed ? 6 : 4;
         return line.segments.map((segment, j) => {
           const coordinates = segment.path.map((p) => ({ latitude: p.lat, longitude: p.lng }));
           return (
@@ -76,7 +79,7 @@ export function GroupRouteMap({ destination, destinationName, lines, highlighted
               )}
               <Polyline
                 coordinates={coordinates}
-                strokeColor={color}
+                strokeColor={detailed ? segment.color : color}
                 strokeWidth={width}
                 lineDashPattern={segment.dashed ? [2, 8] : undefined}
                 lineCap="round"
