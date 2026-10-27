@@ -13,6 +13,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useTheme } from "../theme/ThemeContext";
 import { useLanguage } from "../i18n/LanguageContext";
 import { useAuth } from "../context/AuthContext";
+import { useFriendRequests } from "../context/FriendRequestsContext";
 import * as api from "../services/api";
 import { FriendsOverview } from "../types/social";
 import { Venue } from "../types/venue";
@@ -27,6 +28,7 @@ export default function FriendsScreen() {
   const { colors } = useTheme();
   const { t, errorText } = useLanguage();
   const { token } = useAuth();
+  const { update: updateRequests } = useFriendRequests();
 
   const [overview, setOverview] = useState<FriendsOverview | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -42,12 +44,14 @@ export default function FriendsScreen() {
   const load = useCallback(async () => {
     if (!token) return;
     try {
-      setOverview(await api.getFriends(token));
+      const next = await api.getFriends(token);
+      setOverview(next);
+      updateRequests(next.incoming);
       setLoadFailed(false);
     } catch {
       setLoadFailed(true);
     }
-  }, [token]);
+  }, [token, updateRequests]);
 
   useFocusEffect(
     useCallback(() => {
