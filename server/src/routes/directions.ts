@@ -3,6 +3,10 @@ import { getVenues } from "../data/venues";
 import { getRoute } from "../services/directions";
 import { TravelMode } from "../types/directions";
 
+/**
+ * Directions endpoint: GET /directions returns a route from a starting point to
+ * a venue by public transport, walking, driving or cycling.
+ */
 export const directionsRouter = Router();
 
 const TRAVEL_MODES: TravelMode[] = ["transit", "walk", "drive", "cycle"];

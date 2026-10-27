@@ -21,6 +21,10 @@ export function googleProfileDir(): string {
   return process.env.GOOGLE_PROFILE_DIR || path.join(os.homedir(), ".crowdy", "google-profile");
 }
 
+/**
+ * Where Chrome is installed, for the Popular Times scraper.
+ * @returns CHROME_PATH from .env, or the usual macOS location
+ */
 export function chromePath(): string {
   return process.env.CHROME_PATH || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 }

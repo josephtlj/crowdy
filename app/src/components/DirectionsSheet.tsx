@@ -62,6 +62,15 @@ const EXPANDED_FRACTION = 0.85;
 // of springing back - short enough that a deliberate flick always lands.
 const SNAP_THRESHOLD = 40;
 
+/**
+ * The draggable sheet on the directions screen: the travel mode tabs, the
+ * route's time and distance, and its steps. Dragging it up shows every step.
+ * @param mode - the travel mode shown
+ * @param onSelectMode - called when a different mode tab is tapped
+ * @param route - the route for that mode, or null while loading or after an error
+ * @param destinationName - the venue being travelled to
+ * @param destinationCrowd - that venue's crowd level
+ */
 export function DirectionsSheet({
   mode,
   onSelectMode,
@@ -288,6 +297,12 @@ interface StepRowProps {
   surfaceAltColor: string;
 }
 
+/**
+ * One step of a route: its icon, line name, time, distance and instruction.
+ * Also used for each person's steps on the group routes screen.
+ * @param step - the step to show
+ * @param isLast - stops the coloured line down the left at the final step
+ */
 export function StepRow({ step, isLast, textColor, mutedColor, borderColor, surfaceAltColor }: StepRowProps) {
   const { t, language } = useLanguage();
   const accent = step.lineColor ?? mutedColor;
@@ -356,6 +371,12 @@ function shortStationName(name: string): string {
   return name.replace(/\s+Station$/i, "");
 }
 
+/**
+ * Words a trip duration in the app's language, e.g. "25 min" or "1 hr 5 min".
+ * @param seconds - the duration in seconds
+ * @param t - the translate function
+ * @returns the duration text
+ */
 export function formatDuration(seconds: number, t: Translate): string {
   const minutes = Math.round(seconds / 60);
   if (minutes < 1) return t("duration.underMin");

@@ -34,10 +34,14 @@ const TIMINGS: { key: RouteTiming; label: StringKey; hint: StringKey }[] = [
   { key: "leave", label: "routes.leave", hint: "routes.leaveHint" },
 ];
 
-// Everyone's public transport trip to one suggested mall: each person's
-// route drawn on the map in their own colour, with their leave and arrive
-// times and steps listed below. With a meeting time chosen, the group can
-// either all leave at that time or each leave early enough to arrive by it.
+/**
+ * Everyone's public transport trip to one suggested mall: each person's
+ * route drawn on the map in their own colour, with their leave and arrive
+ * times and steps listed below. With a meeting time chosen, the group can
+ * either all leave at that time or each leave early enough to arrive by it.
+ * @param navRoute - carries the mall, each person's starting station and the meeting time
+ * @param navigation - sets the screen title and opens the mall's details
+ */
 export default function GroupRoutesScreen({ route: navRoute, navigation }: Props) {
   const { venueId, venueName, people, at } = navRoute.params;
   const { colors } = useTheme();

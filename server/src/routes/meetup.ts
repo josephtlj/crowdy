@@ -4,6 +4,11 @@ import { MEETUP_PRIORITIES, MeetupPriority, planGroupRoutes, planMeetup, ROUTE_T
 import { getVenues } from "../data/venues";
 import { rateLimit } from "../middleware/rateLimit";
 
+/**
+ * Meetup endpoints: POST /meetup suggests malls for a group's starting stations,
+ * priority and meeting time, and POST /meetup/routes plans everyone's trip to
+ * one of them. Both are rate limited per client.
+ */
 export const meetupRouter = Router();
 
 // Each plan can take dozens of OneMap lookups, so one client gets 10 plans

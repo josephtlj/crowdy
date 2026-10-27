@@ -22,6 +22,11 @@ const APP_VERSION = "1.0.0 (MVP)";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Settings">;
 
+/**
+ * Settings: sign up, log in or log out, switch between light and dark mode,
+ * change the language, and open the friends list.
+ * @param navigation - opens the friends screen
+ */
 export default function SettingsScreen({ navigation }: Props) {
   const { mode, colors, toggleTheme } = useTheme();
   const { language, setLanguage, t, errorText } = useLanguage();

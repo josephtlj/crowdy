@@ -15,6 +15,10 @@ export interface StoredSession {
   username: string;
 }
 
+/**
+ * Reads the saved login from the phone's secure storage.
+ * @returns the saved session, or null if there is none or it can't be read
+ */
 export async function loadSession(): Promise<StoredSession | null> {
   try {
     const raw = await SecureStore.getItemAsync(SESSION_KEY);
@@ -25,6 +29,10 @@ export async function loadSession(): Promise<StoredSession | null> {
   }
 }
 
+/**
+ * Saves the login to the phone's secure storage so the user stays signed in.
+ * @param session - the token, account id and username
+ */
 export async function storeSession(session: StoredSession): Promise<void> {
   try {
     await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(session));
@@ -33,6 +41,9 @@ export async function storeSession(session: StoredSession): Promise<void> {
   }
 }
 
+/**
+ * Removes the saved login on log out or when the session has expired.
+ */
 export async function clearSession(): Promise<void> {
   try {
     await SecureStore.deleteItemAsync(SESSION_KEY);
