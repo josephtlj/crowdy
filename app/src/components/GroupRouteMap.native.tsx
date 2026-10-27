@@ -19,14 +19,17 @@ interface Props {
   lines: GroupRouteLine[];
   // The person whose route is picked out, or null to show everyone evenly.
   highlighted: number | null;
+  // How much of the map's bottom edge the list covers, so routes are fitted
+  // into the part still visible.
+  bottomInset: number;
 }
 
-const FIT_PADDING = { top: 50, right: 40, bottom: 40, left: 40 };
+const FIT_PADDING = 40;
 
 // Metro picks this file on iOS/Android; GroupRouteMap.web.tsx is the web
 // fallback. Each person's whole trip is drawn in their own colour (walking
 // legs dashed), so the routes read as people rather than as train lines.
-export function GroupRouteMap({ destination, destinationName, lines, highlighted }: Props) {
+export function GroupRouteMap({ destination, destinationName, lines, highlighted, bottomInset }: Props) {
   const { mode } = useTheme();
   const mapRef = useRef<MapView>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -38,9 +41,12 @@ export function GroupRouteMap({ destination, destinationName, lines, highlighted
     const points = [destination, ...shown.flatMap((line) => [line.origin, ...line.segments.flatMap((s) => s.path)])];
     mapRef.current?.fitToCoordinates(
       points.map((p) => ({ latitude: p.lat, longitude: p.lng })),
-      { edgePadding: FIT_PADDING, animated: true }
+      {
+        edgePadding: { top: FIT_PADDING + 10, right: FIT_PADDING, bottom: bottomInset + FIT_PADDING, left: FIT_PADDING },
+        animated: true,
+      }
     );
-  }, [lines, highlighted, destination, mapReady]);
+  }, [lines, highlighted, destination, mapReady, bottomInset]);
 
   // The highlighted route goes last so it's drawn on top of the others.
   const order = lines.map((_, i) => i).sort((a, b) => Number(a === highlighted) - Number(b === highlighted));
