@@ -3,6 +3,11 @@ import { RowDataPacket } from "mysql2";
 import { pool } from "../services/db";
 import { requireAuth } from "../middleware/requireAuth";
 
+/**
+ * Saved venues for the signed-in account: list, save, remove, and merge the
+ * venues a guest saved on the device after they sign in. Every endpoint needs
+ * a session token.
+ */
 export const favouritesRouter = Router();
 favouritesRouter.use(requireAuth);
 

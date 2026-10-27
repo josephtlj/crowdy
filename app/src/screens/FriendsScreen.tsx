@@ -18,9 +18,11 @@ import { FriendsOverview } from "../types/social";
 import { Venue } from "../types/venue";
 import { StationPicker } from "../components/StationPicker";
 
-// Friends for the meetup planner: your own home station, adding friends by
-// username, answering requests, and the friends list with each friend's
-// home station.
+/**
+ * Friends for the meetup planner: your own home station, adding friends by
+ * username, answering requests, and the friends list with each friend's
+ * home station.
+ */
 export default function FriendsScreen() {
   const { colors } = useTheme();
   const { t, errorText } = useLanguage();

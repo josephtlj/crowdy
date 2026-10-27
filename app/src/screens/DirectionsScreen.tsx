@@ -23,6 +23,13 @@ type Props = NativeStackScreenProps<RootStackParamList, "Directions">;
 // you've left the bus stop, walked the wrong way out of the station.
 const REROUTE_AFTER_M = 150;
 
+/**
+ * Directions from the user's location to a venue by public transport, walking,
+ * driving or cycling. The route is fetched again once the user has moved far
+ * enough from where it started.
+ * @param navRoute - carries the id of the destination venue
+ * @param navigation - sets the screen title to the venue's name
+ */
 export default function DirectionsScreen({ route: navRoute, navigation }: Props) {
   const { venueId } = navRoute.params;
   const { colors } = useTheme();

@@ -16,6 +16,11 @@ export type HoursStatusDetail =
   | { type: "opensTomorrow"; time: string }
   | { type: "opensOn"; time: string; day: number };
 
+/**
+ * Turns a time such as "10:30 pm" or "9 am" into minutes after midnight.
+ * @param s - the time text
+ * @returns the minutes after midnight, or null if it isn't a time
+ */
 export function parseTimeToMinutes(s: string): number | null {
   const m = s.match(/(\d+)(?::(\d+))?\s*(am|pm)/i);
   if (!m) return null;

@@ -3,6 +3,10 @@ import { getVenues } from "../data/venues";
 import { getHeatmapPng } from "../services/heatmapImage";
 import { HEATMAP_BOUNDS } from "../services/heatmap";
 
+/**
+ * Heatmap endpoints: the crowd heatmap image drawn over the map, and the map
+ * area that image covers.
+ */
 export const heatmapRouter = Router();
 
 // GET /heatmap/image.png -> the pre-rendered crowd heatmap overlay, sized

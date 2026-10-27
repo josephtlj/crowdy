@@ -48,9 +48,12 @@ const PRIORITIES: { key: MeetupPriority; label: StringKey; hint: StringKey }[] =
 let nextKey = 0;
 const newKey = () => `p${nextKey++}`;
 
-// Meetup planner: add everyone's starting station (yourself, friends, or
-// anyone else) and when you'll meet, then get malls that are fair for
-// everyone to reach by public transport and not too crowded at that time.
+/**
+ * Meetup planner: add everyone's starting station (yourself, friends, or
+ * anyone else) and when you'll meet, then get malls that are fair for
+ * everyone to reach by public transport and not too crowded at that time.
+ * @param navigation - opens a suggested mall, the group's routes or the friends screen
+ */
 export default function MeetupScreen({ navigation }: Props) {
   const { colors } = useTheme();
   const { t, language } = useLanguage();

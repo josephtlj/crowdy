@@ -5,6 +5,11 @@ import { findAlternatives } from "../services/alternatives";
 import { refreshPopularTimesNow, refreshPopularTimesOnRequest } from "../services/popularTimes";
 import { rateLimit } from "../middleware/rateLimit";
 
+/**
+ * Venue endpoints: the venue list (sorted by distance when a location is given),
+ * one venue, its quieter alternatives, its popular times, and a manual popular
+ * times refresh that is rate limited per client.
+ */
 export const venuesRouter = Router();
 
 // GET /venues?lat=1.30&lng=103.85 -> all venues, sorted nearest first

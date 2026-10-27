@@ -4,6 +4,10 @@ import { hashPassword, verifyPassword, signToken } from "../services/auth";
 import { RowDataPacket } from "mysql2";
 import { rateLimit } from "../middleware/rateLimit";
 
+/**
+ * Account endpoints: POST /auth/signup creates an account and POST /auth/login
+ * signs in. Both return a session token and are rate limited per client.
+ */
 export const authRouter = Router();
 
 // 10 login/sign-up attempts per minute per client - plenty for a person,

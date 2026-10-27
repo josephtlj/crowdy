@@ -34,6 +34,13 @@ const REFRESH_NOTES: Record<ManualRefreshStatus, StringKey> = {
 
 type Props = NativeStackScreenProps<RootStackParamList, "Detail">;
 
+/**
+ * Details for one mall or station: its crowd level, popular times chart,
+ * opening hours and quieter places nearby. Signed-in users and guests can save
+ * it, and malls can be refreshed by hand.
+ * @param route - carries the id of the venue to show
+ * @param navigation - opens directions or another venue
+ */
 export default function DetailScreen({ route, navigation }: Props) {
   const { venueId } = route.params;
   const { colors } = useTheme();

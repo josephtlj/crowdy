@@ -5,6 +5,11 @@ import { requireAuth } from "../middleware/requireAuth";
 import { STATIONS } from "../data/stations";
 import { rateLimit } from "../middleware/rateLimit";
 
+/**
+ * Friends for the meetup planner: the friends overview, sending and accepting
+ * requests, removing a friend, and setting the account's home station. Every
+ * endpoint needs a session token.
+ */
 export const friendsRouter = Router();
 friendsRouter.use(requireAuth);
 

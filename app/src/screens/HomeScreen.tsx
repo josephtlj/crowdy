@@ -86,6 +86,12 @@ function isWithinRegion(venue: Venue, region: MapRegion): boolean {
   return venue.lat >= latMin && venue.lat <= latMax && venue.lng >= lngMin && venue.lng <= lngMax;
 }
 
+/**
+ * Home screen: the map of malls and stations with their crowd levels, the
+ * layer toggles and heatmap, and the list sheet with the areas, saved and
+ * search tabs.
+ * @param navigation - opens a venue's details, settings and the meetup planner
+ */
 export default function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
