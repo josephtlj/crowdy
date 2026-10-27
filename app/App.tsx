@@ -12,6 +12,7 @@ import DetailScreen from "./src/screens/DetailScreen";
 import DirectionsScreen from "./src/screens/DirectionsScreen";
 import SettingsScreen from "./src/screens/SettingsScreen";
 import MeetupScreen from "./src/screens/MeetupScreen";
+import GroupRoutesScreen from "./src/screens/GroupRoutesScreen";
 import FriendsScreen from "./src/screens/FriendsScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -72,6 +73,7 @@ function Navigation() {
         <Stack.Screen name="Directions" component={DirectionsScreen} options={{ title: t("screen.directions") }} />
         <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: t("screen.settings") }} />
         <Stack.Screen name="Meetup" component={MeetupScreen} options={{ title: t("screen.meetup") }} />
+        <Stack.Screen name="GroupRoutes" component={GroupRoutesScreen} options={{ title: t("screen.groupRoutes") }} />
         <Stack.Screen name="Friends" component={FriendsScreen} options={{ title: t("screen.friends") }} />
       </Stack.Navigator>
     </NavigationContainer>

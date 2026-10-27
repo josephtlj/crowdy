@@ -1,4 +1,5 @@
 import { CrowdLevel, Venue } from "../types/venue";
+import { Route } from "../types/directions";
 import { STATIONS } from "../data/stations";
 import { getVenues } from "../data/venues";
 import { getRoute } from "./directions";
@@ -157,6 +158,11 @@ function estimateMinutes(from: Participant, to: Venue): number {
 
 const travelCache = new Map<string, { minutes: number; at: number }>();
 
+function travelKey(stationId: string, mallId: string, at?: Date): string {
+  const when = at ? `@${Math.floor(at.getTime() / 3_600_000)}` : "";
+  return `${stationId}->${mallId}${when}`;
+}
+
 // Fills in a time for one station-to-mall trip: cached, from OneMap, or (if
 // OneMap fails or isn't configured) a marked estimate. `failures` collects
 // failed trips so the caller logs one line per plan instead of one per trip.
@@ -169,8 +175,7 @@ async function transitTime(
   failures: string[],
   at?: Date
 ): Promise<TravelTime> {
-  const when = at ? `@${Math.floor(at.getTime() / 3_600_000)}` : "";
-  const key = `${from.stationId}->${to.id}${when}`;
+  const key = travelKey(from.stationId, to.id, at);
   const cached = travelCache.get(key);
   if (cached && Date.now() - cached.at < TRAVEL_CACHE_MS) {
     return { stationId: from.stationId, minutes: cached.minutes, estimated: false };
@@ -262,4 +267,72 @@ export async function planMeetup(
   });
 
   return { suggestions: rankMeetupOptions(options, priority).slice(0, RESULT_COUNT), allClosed };
+}
+
+/**
+ * Whether a group's routes leave at the meeting time, or leave early enough
+ * to arrive by it.
+ */
+export type RouteTiming = "leave" | "arrive";
+export const ROUTE_TIMINGS: RouteTiming[] = ["leave", "arrive"];
+
+export interface GroupRoute {
+  stationId: string;
+  // null when OneMap couldn't plan the trip; minutes is then an estimate.
+  route: Route | null;
+  minutes: number;
+  leaveAt: string;
+  arriveAt: string;
+}
+
+/**
+ * Plans everyone's public transport trip to one suggested mall, for the
+ * group route map.
+ * @param stationIds - each person's starting MRT/LRT station id, in list order
+ * @param mall - the suggested mall
+ * @param at - the meeting time; omitted means now
+ * @param timing - "leave" starts every trip at the meeting time; "arrive"
+ *   starts each one early enough to get there by it
+ * @returns one route per person, in the same order as stationIds
+ */
+export async function planGroupRoutes(
+  stationIds: string[],
+  mall: Venue,
+  at?: Date,
+  timing: RouteTiming = "leave"
+): Promise<GroupRoute[]> {
+  const venues = await getVenues();
+  const meetAt = at ?? new Date();
+  const arriving = at !== undefined && timing === "arrive";
+
+  // People starting from the same station share one lookup.
+  const distinct = [...new Set(stationIds)];
+  const failures: string[] = [];
+  const routes = await runLimited(
+    distinct.map((stationId) => async (): Promise<GroupRoute> => {
+      const station = STATIONS.find((s) => s.id === stationId)!;
+      const from: Participant = { stationId, lat: station.lat, lng: station.lng };
+      // To arrive by the meeting time, set off that many minutes before it -
+      // the time found while planning if there is one, else an estimate.
+      const guess = travelCache.get(travelKey(stationId, mall.id, at))?.minutes ?? estimateMinutes(from, mall);
+      const departAt = arriving ? new Date(meetAt.getTime() - guess * 60_000) : meetAt;
+      let route: Route | null = null;
+      try {
+        route = await getRoute({ lat: from.lat, lng: from.lng }, { lat: mall.lat, lng: mall.lng }, "transit", venues, departAt);
+      } catch (err) {
+        failures.push(`${stationId}->${mall.id} (${err instanceof Error ? err.message : String(err)})`);
+      }
+      const minutes = route ? Math.max(1, Math.round(route.durationSeconds / 60)) : estimateMinutes(from, mall);
+      const leaveAt = arriving ? new Date(meetAt.getTime() - minutes * 60_000) : meetAt;
+      const arriveAt = new Date(leaveAt.getTime() + minutes * 60_000);
+      return { stationId, route, minutes, leaveAt: leaveAt.toISOString(), arriveAt: arriveAt.toISOString() };
+    }),
+    MAX_CONCURRENT_ROUTES
+  );
+  if (failures.length > 0) {
+    console.error(`Group routes: ${failures.length} OneMap route(s) failed - first: ${failures[0]}`);
+  }
+
+  const byStation = new Map(routes.map((r) => [r.stationId, r]));
+  return stationIds.map((id) => byStation.get(id)!);
 }

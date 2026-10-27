@@ -11,6 +11,7 @@ import {
 import { useFocusEffect } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
+import Slider from "@react-native-community/slider";
 import { RootStackParamList } from "../navigation/types";
 import { useTheme } from "../theme/ThemeContext";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -21,6 +22,7 @@ import { formatHour, StringKey } from "../i18n/strings";
 import { Venue } from "../types/venue";
 import { StationPicker } from "../components/StationPicker";
 import { CrowdBadge } from "../components/CrowdBadge";
+import { personColor } from "../components/personColors";
 import { hourForDay, meetingDate, meetingDays, meetingHours, MeetingTime } from "../services/meetingTime";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Meetup">;
@@ -30,10 +32,11 @@ const MAX_PEOPLE = 6;
 
 interface Participant {
   key: string;
-  label: string;
   stationId: string | null;
   // Set for "Me" and friends, so each can only be added once.
   accountId?: number;
+  // A friend's username. "Me" and everyone else are named by position.
+  username?: string;
 }
 
 const PRIORITIES: { key: MeetupPriority; label: StringKey; hint: StringKey }[] = [
@@ -94,9 +97,19 @@ export default function MeetupScreen({ navigation }: Props) {
   );
 
   // Any change to the group makes the previous suggestions out of date.
+  // Signed-in people stay at the top - me first, then friends - with
+  // everyone else after them, each group in the order they were added.
   function updatePeople(next: Participant[]) {
-    setPeople(next);
+    const rank = (p: Participant) => (p.accountId === undefined ? 2 : p.accountId === accountId ? 0 : 1);
+    setPeople([...next].sort((a, b) => rank(a) - rank(b)));
     clearResults();
+  }
+
+  // Named when drawn, so "Person 3" always matches the list position and a
+  // language switch renames "Me".
+  function nameOf(p: Participant, index: number): string {
+    if (p.accountId !== undefined && p.accountId === accountId) return t("meetup.me", { name: username ?? "" });
+    return p.username ?? t("meetup.person", { n: index + 1 });
   }
 
   function clearResults() {
@@ -115,14 +128,13 @@ export default function MeetupScreen({ navigation }: Props) {
     if (!accountId || !username) return;
     updatePeople([
       ...people,
-      { key: newKey(), label: t("meetup.me", { name: username }), stationId: friends?.homeStationId ?? null, accountId },
+      { key: newKey(), stationId: friends?.homeStationId ?? null, accountId },
     ]);
   }
 
   function addSomeone() {
     const key = newKey();
-    const others = people.filter((p) => p.accountId === undefined).length;
-    updatePeople([...people, { key, label: t("meetup.person", { n: others + 1 }), stationId: null }]);
+    updatePeople([...people, { key, stationId: null }]);
     setPickingFor(key);
   }
 
@@ -179,7 +191,19 @@ export default function MeetupScreen({ navigation }: Props) {
   );
 
   const card = [styles.card, { backgroundColor: colors.surface, borderColor: colors.border }];
-  const labelFor = (stationId: string) => people.find((p) => p.stationId === stationId)?.label ?? stationId;
+  const hours = when ? meetingHours(when.day, now) : [];
+
+  function openRoutes(venueId: string, venueName: string) {
+    navigation.navigate("GroupRoutes", {
+      venueId,
+      venueName,
+      people: people.map((p, i) => {
+        const station = stations.find((s) => s.id === p.stationId)!;
+        return { name: nameOf(p, i), stationId: station.id, stationName: station.name, lat: station.lat, lng: station.lng };
+      }),
+      at: when ? meetingDate(when, now).toISOString() : undefined,
+    });
+  }
 
   return (
     <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={styles.content}>
@@ -187,10 +211,11 @@ export default function MeetupScreen({ navigation }: Props) {
 
       {people.length > 0 && (
         <View style={card}>
-          {people.map((p) => (
+          {people.map((p, i) => (
             <View key={p.key} style={styles.personRow}>
+              <View style={[styles.personDot, { backgroundColor: personColor(i) }]} />
               <View style={styles.personText}>
-                <Text style={[styles.name, { color: colors.text }]}>{p.label}</Text>
+                <Text style={[styles.name, { color: colors.text }]}>{nameOf(p, i)}</Text>
                 <TouchableOpacity onPress={() => setPickingFor(p.key)}>
                   <Text style={[styles.station, { color: p.stationId ? colors.textMuted : colors.accent }]}>
                     {p.stationId ? stationName.get(p.stationId) ?? p.stationId : t("meetup.chooseStation")}
@@ -205,29 +230,34 @@ export default function MeetupScreen({ navigation }: Props) {
         </View>
       )}
 
-      <View style={styles.addRow}>
-        {token && !hasMe && (
-          <TouchableOpacity disabled={full} onPress={addMe} style={[styles.chip, { borderColor: colors.border }]}>
-            <Ionicons name="person-outline" size={15} color={colors.text} />
-            <Text style={[styles.chipText, { color: colors.text }]}>{t("meetup.addMe")}</Text>
+      {full ? (
+        <View style={[styles.maxBanner, { borderColor: colors.accent, backgroundColor: `${colors.accent}1A` }]}>
+          <Ionicons name="alert-circle" size={17} color={colors.accent} />
+          <Text style={[styles.maxText, { color: colors.accent }]}>{t("meetup.maxReached", { n: MAX_PEOPLE })}</Text>
+        </View>
+      ) : (
+        <View style={styles.addRow}>
+          {token && !hasMe && (
+            <TouchableOpacity onPress={addMe} style={[styles.chip, { borderColor: colors.border }]}>
+              <Ionicons name="person-outline" size={15} color={colors.text} />
+              <Text style={[styles.chipText, { color: colors.text }]}>{t("meetup.addMe")}</Text>
+            </TouchableOpacity>
+          )}
+          {token && (
+            <TouchableOpacity
+              onPress={() => setFriendChooserOpen(true)}
+              style={[styles.chip, { borderColor: colors.border }]}
+            >
+              <Ionicons name="people-outline" size={15} color={colors.text} />
+              <Text style={[styles.chipText, { color: colors.text }]}>{t("meetup.addFriend")}</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={addSomeone} style={[styles.chip, { borderColor: colors.border }]}>
+            <Ionicons name="add" size={16} color={colors.text} />
+            <Text style={[styles.chipText, { color: colors.text }]}>{t("meetup.addSomeone")}</Text>
           </TouchableOpacity>
-        )}
-        {token && (
-          <TouchableOpacity
-            disabled={full}
-            onPress={() => setFriendChooserOpen(true)}
-            style={[styles.chip, { borderColor: colors.border }]}
-          >
-            <Ionicons name="people-outline" size={15} color={colors.text} />
-            <Text style={[styles.chipText, { color: colors.text }]}>{t("meetup.addFriend")}</Text>
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity disabled={full} onPress={addSomeone} style={[styles.chip, { borderColor: colors.border }]}>
-          <Ionicons name="add" size={16} color={colors.text} />
-          <Text style={[styles.chipText, { color: colors.text }]}>{t("meetup.addSomeone")}</Text>
-        </TouchableOpacity>
-      </View>
-      {full && <Text style={[styles.hint, { color: colors.textMuted }]}>{t("meetup.max", { n: MAX_PEOPLE })}</Text>}
+        </View>
+      )}
 
       <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t("meetup.priority")}</Text>
       <View style={styles.addRow}>
@@ -245,15 +275,31 @@ export default function MeetupScreen({ navigation }: Props) {
         {choice("now", t("meetup.now"), when === null, () => chooseDay(null))}
         {meetingDays(now).map((day) => choice(day, dayLabel(day), when?.day === day, () => chooseDay(day)))}
       </ScrollView>
-      {when && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-          {meetingHours(when.day, now).map((hour) =>
-            choice(hour, formatHour(hour, language), when.hour === hour, () => {
+      {when && hours.length > 0 && (
+        <View style={[styles.timeCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.timeValue, { color: colors.text }]}>{whenLabel}</Text>
+          <Slider
+            style={styles.slider}
+            minimumValue={hours[0]}
+            maximumValue={hours[hours.length - 1]}
+            step={1}
+            disabled={hours.length === 1}
+            value={when.hour}
+            onValueChange={(value) => {
+              const hour = Math.round(value);
+              if (hour === when.hour) return;
               setWhen({ day: when.day, hour });
               clearResults();
-            })
-          )}
-        </ScrollView>
+            }}
+            minimumTrackTintColor={colors.accent}
+            maximumTrackTintColor={colors.border}
+            thumbTintColor={colors.accent}
+          />
+          <View style={styles.sliderEnds}>
+            <Text style={[styles.hint, { color: colors.textMuted }]}>{formatHour(hours[0], language)}</Text>
+            <Text style={[styles.hint, { color: colors.textMuted }]}>{formatHour(hours[hours.length - 1], language)}</Text>
+          </View>
+        </View>
       )}
       <Text style={[styles.hint, { color: colors.textMuted }]}>{t(when ? "meetup.laterHint" : "meetup.nowHint")}</Text>
 
@@ -293,31 +339,42 @@ export default function MeetupScreen({ navigation }: Props) {
             <Text style={[styles.hint, { color: colors.textMuted }]}>{t("meetup.none")}</Text>
           )}
           {plan.suggestions.map((s, i) => (
-            <TouchableOpacity
-              key={s.venueId}
-              style={card}
-              onPress={() => navigation.navigate("Detail", { venueId: s.venueId })}
-            >
-              <View style={styles.resultHead}>
-                <Text style={[styles.resultName, { color: colors.text }]} numberOfLines={1}>
-                  {i + 1}. {s.name}
-                </Text>
-                <CrowdBadge level={s.crowdLevel} />
-              </View>
-              <Text style={[styles.hint, { color: colors.textMuted }]}>
-                {t("meetup.summary", { max: s.maxMinutes, avg: s.avgMinutes })}
-              </Text>
-              <View style={styles.trips}>
-                {s.travel.map((trip, j) => (
-                  <Text key={j} style={[styles.trip, { color: colors.text, backgroundColor: colors.surfaceAlt }]}>
-                    {t("meetup.trip", {
-                      name: people[j]?.label ?? labelFor(trip.stationId),
-                      minutes: `${trip.estimated ? "≈" : ""}${trip.minutes}`,
-                    })}
+            <View key={s.venueId} style={card}>
+              <TouchableOpacity
+                style={styles.resultBody}
+                onPress={() => navigation.navigate("Detail", { venueId: s.venueId })}
+              >
+                <View style={styles.resultHead}>
+                  <Text style={[styles.resultName, { color: colors.text }]} numberOfLines={1}>
+                    {i + 1}. {s.name}
                   </Text>
-                ))}
-              </View>
-            </TouchableOpacity>
+                  <CrowdBadge level={s.crowdLevel} />
+                </View>
+                <Text style={[styles.hint, { color: colors.textMuted }]}>
+                  {t("meetup.summary", { max: s.maxMinutes, avg: s.avgMinutes })}
+                </Text>
+                <View style={styles.trips}>
+                  {s.travel.map((trip, j) => (
+                    <View key={j} style={[styles.trip, { backgroundColor: colors.surfaceAlt }]}>
+                      <View style={[styles.tripDot, { backgroundColor: personColor(j) }]} />
+                      <Text style={[styles.tripText, { color: colors.text }]}>
+                        {t("meetup.trip", {
+                          name: people[j] ? nameOf(people[j], j) : trip.stationId,
+                          minutes: `${trip.estimated ? "≈" : ""}${trip.minutes}`,
+                        })}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => openRoutes(s.venueId, s.name)}
+                style={[styles.routesButton, { borderColor: colors.accent }]}
+              >
+                <Ionicons name="map-outline" size={15} color={colors.accent} />
+                <Text style={[styles.routesText, { color: colors.accent }]}>{t("meetup.seeRoutes")}</Text>
+              </TouchableOpacity>
+            </View>
           ))}
           {plan.suggestions.some((s) => s.travel.some((trip) => trip.estimated)) && (
             <Text style={[styles.hint, { color: colors.textMuted }]}>{t("meetup.estimatedNote")}</Text>
@@ -369,7 +426,7 @@ export default function MeetupScreen({ navigation }: Props) {
                 onPress={() => {
                   updatePeople([
                     ...people,
-                    { key: newKey(), label: f.username, stationId: f.homeStationId, accountId: f.accountId },
+                    { key: newKey(), username: f.username, stationId: f.homeStationId, accountId: f.accountId },
                   ]);
                   setFriendChooserOpen(false);
                 }}
@@ -393,6 +450,21 @@ const styles = StyleSheet.create({
   card: { padding: 14, borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, gap: 10 },
   personRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   personText: { flex: 1, gap: 2 },
+  personDot: { width: 10, height: 10, borderRadius: 5 },
+  maxBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  maxText: { fontSize: 14, fontWeight: "600", flex: 1 },
+  timeCard: { padding: 14, borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, gap: 4 },
+  timeValue: { fontSize: 17, fontWeight: "700" },
+  slider: { width: "100%", height: 40 },
+  sliderEnds: { flexDirection: "row", justifyContent: "space-between" },
   name: { fontSize: 15, fontWeight: "600" },
   station: { fontSize: 14 },
   addRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
@@ -416,7 +488,20 @@ const styles = StyleSheet.create({
   resultHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
   resultName: { fontSize: 16, fontWeight: "700", flex: 1 },
   trips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  trip: { fontSize: 13, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, overflow: "hidden" },
+  resultBody: { gap: 10 },
+  trip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  tripDot: { width: 8, height: 8, borderRadius: 4 },
+  tripText: { fontSize: 13 },
+  routesButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingVertical: 8,
+  },
+  routesText: { fontSize: 14, fontWeight: "600" },
   manage: { alignItems: "center", paddingVertical: 8 },
   sheet: { flex: 1, paddingTop: 16 },
   sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, marginBottom: 8 },
