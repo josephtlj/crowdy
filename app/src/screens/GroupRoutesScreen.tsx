@@ -6,7 +6,8 @@ import {
   ScrollView,
   StyleSheet,
   ActivityIndicator,
-  useWindowDimensions,
+  Animated,
+  LayoutChangeEvent,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,8 +21,13 @@ import { Venue } from "../types/venue";
 import { GroupRouteMap, GroupRouteLine } from "../components/GroupRouteMap";
 import { StepRow, formatDuration } from "../components/DirectionsSheet";
 import { personColor } from "../components/personColors";
+import { SheetHandle, useSnapSheet } from "../components/SnapSheet";
 
 type Props = NativeStackScreenProps<RootStackParamList, "GroupRoutes">;
+
+// The list rests with the map filling this share of the screen above it, and
+// can be dragged up to the top to read long itineraries.
+const MAP_FRACTION = 0.42;
 
 const TIMINGS: { key: RouteTiming; label: StringKey; hint: StringKey }[] = [
   { key: "arrive", label: "routes.arrive", hint: "routes.arriveHint" },
@@ -36,7 +42,9 @@ export default function GroupRoutesScreen({ route: navRoute, navigation }: Props
   const { venueId, venueName, people, at } = navRoute.params;
   const { colors } = useTheme();
   const { t, language } = useLanguage();
-  const { height: screenHeight } = useWindowDimensions();
+  const [screenHeight, setScreenHeight] = useState(0);
+  const restingTop = screenHeight * MAP_FRACTION;
+  const sheet = useSnapSheet(restingTop);
 
   const [mall, setMall] = useState<Venue | null>(null);
   const [timing, setTiming] = useState<RouteTiming>("arrive");
@@ -99,144 +107,170 @@ export default function GroupRoutesScreen({ route: navRoute, navigation }: Props
   const meetAt = at ? formatTime(new Date(at), language) : null;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={{ height: screenHeight * 0.42 }}>
-        {mall ? (
-          <GroupRouteMap
-            destination={{ lat: mall.lat, lng: mall.lng }}
-            destinationName={venueName}
-            lines={lines}
-            highlighted={highlighted}
-          />
-        ) : (
-          <View style={[styles.centered, { backgroundColor: colors.surfaceAlt }]}>
-            <ActivityIndicator />
-          </View>
-        )}
-      </View>
+    <View
+      style={[styles.container, { backgroundColor: colors.background }]}
+      onLayout={(e: LayoutChangeEvent) => setScreenHeight(e.nativeEvent.layout.height)}
+    >
+      {/* The map fills the screen behind the list; routes are fitted into
+          the part above the resting list. */}
+      {mall && screenHeight > 0 ? (
+        <GroupRouteMap
+          destination={{ lat: mall.lat, lng: mall.lng }}
+          destinationName={venueName}
+          lines={lines}
+          highlighted={highlighted}
+          bottomInset={screenHeight - restingTop}
+        />
+      ) : (
+        <View style={[styles.mapLoading, { height: restingTop, backgroundColor: colors.surfaceAlt }]}>
+          <ActivityIndicator />
+        </View>
+      )}
 
-      <ScrollView contentContainerStyle={styles.content}>
-        {meetAt && (
-          <>
-            <View style={styles.timings}>
-              {TIMINGS.map((option) => {
-                const selected = option.key === timing;
+      <Animated.View
+        style={[
+          styles.sheet,
+          { backgroundColor: colors.background, borderColor: colors.border, transform: [{ translateY: sheet.offset }] },
+        ]}
+      >
+        <SheetHandle sheet={sheet} />
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: 40 + (sheet.raised ? 0 : restingTop) }]}
+        >
+          {meetAt && (
+            <>
+              <View style={styles.timings}>
+                {TIMINGS.map((option) => {
+                  const selected = option.key === timing;
+                  return (
+                    <TouchableOpacity
+                      key={option.key}
+                      onPress={() => setTiming(option.key)}
+                      style={[
+                        styles.timing,
+                        {
+                          borderColor: selected ? colors.accent : colors.border,
+                          backgroundColor: selected ? colors.accent : "transparent",
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.timingText, { color: selected ? "#FFFFFF" : colors.text }]}>
+                        {t(option.label, { time: meetAt })}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <Text style={[styles.hint, { color: colors.textMuted }]}>
+                {t(TIMINGS.find((o) => o.key === timing)!.hint)}
+              </Text>
+            </>
+          )}
+
+          {loading && (
+            <View style={styles.status}>
+              <ActivityIndicator />
+              <Text style={[styles.hint, { color: colors.textMuted }]}>{t("routes.finding")}</Text>
+            </View>
+          )}
+          {failed && (
+            <View style={styles.status}>
+              <Text style={[styles.hint, { color: colors.textMuted }]}>{t("routes.failed")}</Text>
+              <TouchableOpacity onPress={() => void load(timing, { useCache: false })}>
+                <Text style={[styles.link, { color: colors.accent }]}>{t("directions.retry")}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {!loading && routes && (
+            <>
+              <Text style={[styles.hint, { color: colors.textMuted }]}>{t("routes.tapHint")}</Text>
+              {people.map((person, i) => {
+                const trip = routes[i];
+                if (!trip) return null;
+                const open = highlighted === i;
+                const color = personColor(i);
                 return (
-                  <TouchableOpacity
-                    key={option.key}
-                    onPress={() => setTiming(option.key)}
+                  <View
+                    key={i}
                     style={[
-                      styles.timing,
-                      {
-                        borderColor: selected ? colors.accent : colors.border,
-                        backgroundColor: selected ? colors.accent : "transparent",
-                      },
+                      styles.card,
+                      { backgroundColor: colors.surface, borderColor: open ? color : colors.border },
                     ]}
                   >
-                    <Text style={[styles.timingText, { color: selected ? "#FFFFFF" : colors.text }]}>
-                      {t(option.label, { time: meetAt })}
-                    </Text>
-                  </TouchableOpacity>
+                    <TouchableOpacity style={styles.cardHead} onPress={() => setHighlighted(open ? null : i)}>
+                      <View style={[styles.badge, { backgroundColor: color }]}>
+                        <Text style={styles.badgeText}>{i + 1}</Text>
+                      </View>
+                      <View style={styles.cardText}>
+                        <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
+                          {person.name}
+                          <Text style={[styles.station, { color: colors.textMuted }]}>  {person.stationName}</Text>
+                        </Text>
+                        <Text style={[styles.hint, { color: colors.textMuted }]}>
+                          {t("routes.times", {
+                            leave: formatTime(new Date(trip.leaveAt), language),
+                            arrive: formatTime(new Date(trip.arriveAt), language),
+                          })}
+                        </Text>
+                      </View>
+                      <Text style={[styles.minutes, { color: colors.text }]}>
+                        {trip.route ? "" : "≈"}
+                        {formatDuration(trip.minutes * 60, t)}
+                      </Text>
+                      <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color={colors.textMuted} />
+                    </TouchableOpacity>
+
+                    {open &&
+                      (trip.route ? (
+                        <View style={styles.steps}>
+                          {trip.route.steps.map((step, j) => (
+                            <StepRow
+                              key={j}
+                              step={step}
+                              isLast={j === trip.route!.steps.length - 1}
+                              textColor={colors.text}
+                              mutedColor={colors.textMuted}
+                              borderColor={colors.border}
+                              surfaceAltColor={colors.surfaceAlt}
+                            />
+                          ))}
+                        </View>
+                      ) : (
+                        <Text style={[styles.hint, { color: colors.textMuted }]}>{t("routes.estimated")}</Text>
+                      ))}
+                  </View>
                 );
               })}
-            </View>
-            <Text style={[styles.hint, { color: colors.textMuted }]}>
-              {t(TIMINGS.find((o) => o.key === timing)!.hint)}
-            </Text>
-          </>
-        )}
+            </>
+          )}
 
-        {loading && (
-          <View style={styles.status}>
-            <ActivityIndicator />
-            <Text style={[styles.hint, { color: colors.textMuted }]}>{t("routes.finding")}</Text>
-          </View>
-        )}
-        {failed && (
-          <View style={styles.status}>
-            <Text style={[styles.hint, { color: colors.textMuted }]}>{t("routes.failed")}</Text>
-            <TouchableOpacity onPress={() => void load(timing, { useCache: false })}>
-              <Text style={[styles.link, { color: colors.accent }]}>{t("directions.retry")}</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {!loading && routes && (
-          <>
-            <Text style={[styles.hint, { color: colors.textMuted }]}>{t("routes.tapHint")}</Text>
-            {people.map((person, i) => {
-              const trip = routes[i];
-              if (!trip) return null;
-              const open = highlighted === i;
-              const color = personColor(i);
-              return (
-                <View
-                  key={i}
-                  style={[
-                    styles.card,
-                    { backgroundColor: colors.surface, borderColor: open ? color : colors.border },
-                  ]}
-                >
-                  <TouchableOpacity style={styles.cardHead} onPress={() => setHighlighted(open ? null : i)}>
-                    <View style={[styles.badge, { backgroundColor: color }]}>
-                      <Text style={styles.badgeText}>{i + 1}</Text>
-                    </View>
-                    <View style={styles.cardText}>
-                      <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
-                        {person.name}
-                        <Text style={[styles.station, { color: colors.textMuted }]}>  {person.stationName}</Text>
-                      </Text>
-                      <Text style={[styles.hint, { color: colors.textMuted }]}>
-                        {t("routes.times", {
-                          leave: formatTime(new Date(trip.leaveAt), language),
-                          arrive: formatTime(new Date(trip.arriveAt), language),
-                        })}
-                      </Text>
-                    </View>
-                    <Text style={[styles.minutes, { color: colors.text }]}>
-                      {trip.route ? "" : "≈"}
-                      {formatDuration(trip.minutes * 60, t)}
-                    </Text>
-                    <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color={colors.textMuted} />
-                  </TouchableOpacity>
-
-                  {open &&
-                    (trip.route ? (
-                      <View style={styles.steps}>
-                        {trip.route.steps.map((step, j) => (
-                          <StepRow
-                            key={j}
-                            step={step}
-                            isLast={j === trip.route!.steps.length - 1}
-                            textColor={colors.text}
-                            mutedColor={colors.textMuted}
-                            borderColor={colors.border}
-                            surfaceAltColor={colors.surfaceAlt}
-                          />
-                        ))}
-                      </View>
-                    ) : (
-                      <Text style={[styles.hint, { color: colors.textMuted }]}>{t("routes.estimated")}</Text>
-                    ))}
-                </View>
-              );
-            })}
-          </>
-        )}
-
-        <TouchableOpacity onPress={() => navigation.navigate("Detail", { venueId })} style={styles.mallLink}>
-          <Text style={[styles.link, { color: colors.accent }]}>{venueName}</Text>
-          <Ionicons name="chevron-forward" size={15} color={colors.accent} />
-        </TouchableOpacity>
-      </ScrollView>
+          <TouchableOpacity onPress={() => navigation.navigate("Detail", { venueId })} style={styles.mallLink}>
+            <Text style={[styles.link, { color: colors.accent }]}>{venueName}</Text>
+            <Ionicons name="chevron-forward" size={15} color={colors.accent} />
+          </TouchableOpacity>
+        </ScrollView>
+      </Animated.View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
-  content: { padding: 16, paddingBottom: 40, gap: 10 },
+  mapLoading: { justifyContent: "center", alignItems: "center" },
+  sheet: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 0,
+    overflow: "hidden",
+  },
+  content: { paddingHorizontal: 16, paddingTop: 4, gap: 10 },
   timings: { flexDirection: "row", gap: 8 },
   timing: {
     flex: 1,

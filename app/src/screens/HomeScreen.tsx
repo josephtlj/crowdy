@@ -17,6 +17,7 @@ import {
 import * as Location from "expo-location";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
+import { SheetHandle, useSnapSheet } from "../components/SnapSheet";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/types";
 import { Venue } from "../types/venue";
@@ -68,6 +69,12 @@ const LAYOUT_ANIMATION_MAX_CHANGED = 10;
 const SEARCH_LIST_MIN_VISIBLE_ROWS = 3;
 const SEARCH_ROW_HEIGHT_ESTIMATE = 64;
 const SEARCH_LIST_MIN_HEIGHT = SEARCH_ROW_HEIGHT_ESTIMATE * SEARCH_LIST_MIN_VISIBLE_ROWS;
+// The map takes this share of the screen (VenueMap's wrapper height), and the
+// sheet's rounded top overlaps it by SHEET_OVERLAP.
+const MAP_FRACTION = 0.58;
+const SHEET_OVERLAP = 20;
+// Raised, the sheet stops this far below the safe area, just under "Crowdy".
+const BRAND_CLEARANCE = 40;
 
 type Props = NativeStackScreenProps<RootStackParamList, "Home">;
 
@@ -176,80 +183,56 @@ export default function HomeScreen({ navigation }: Props) {
 
   const listRef = useRef<FlatList<Venue>>(null);
 
-  // Slides the sheet (search bar + list) up over the map when the keyboard
-  // opens, so the search input clears the keyboard - Android already
-  // resizes the window itself by default - but that assumption was never
-  // actually verified against this specific layout (a map behind a sheet
-  // that overlaps it via negative margin), and there's no explicit
-  // windowSoftInputMode set in app.json to confirm it either. Confirmed
-  // directly: it doesn't - the same shift/resize logic below is needed on
-  // both platforms, just driven by different Keyboard events, since
-  // "keyboardWillShow"/"keyboardWillHide" are iOS-only and never fire on
-  // Android at all (Android only has the "Did" variants, which fire after
-  // the keyboard has already finished animating rather than in sync with
-  // it - slightly less smooth, but otherwise identical behavior).
-  // Deliberately a transform on the sheet rather than
-  // resizing anything: an earlier attempt shrank the whole screen
-  // (KeyboardAvoidingView around map + sheet), which resized the live
-  // MapView on every animation frame and read as a slow, jittery zoom since
-  // its region stayed fixed while its pixel size changed underneath it.
-  //
-  // `searchListHeight` is null whenever the keyboard's down (search tab
-  // just uses the normal full-height list then, same as every other tab).
-  // Once the keyboard shows, both the shift and the list's height are
-  // computed together from real measured positions: `sheetLayoutRef` is the
-  // sheet's own natural (untransformed - onLayout ignores the transform)
-  // top position, `listLayoutRef` is the list's natural position relative
-  // to the sheet (i.e. the height of the tab bar + search row above it).
-  // Together they give the list's natural absolute top. If there's already
-  // more room above the keyboard than SEARCH_LIST_MIN_HEIGHT needs, the
-  // list just fills that room as-is (no shift, more results shown) -
-  // otherwise the sheet shifts up by just enough to make exactly
-  // SEARCH_LIST_MIN_HEIGHT of room, no more (an earlier version shifted by
-  // the sheet's full height regardless, which overshot and pushed the
-  // search bar needlessly high).
-  const sheetOffset = useRef(new Animated.Value(0)).current;
-  const sheetLayoutRef = useRef({ y: 0 });
-  const listLayoutRef = useRef({ y: 0 });
-  const [searchListHeight, setSearchListHeight] = useState<number | null>(null);
-  const handleSheetLayout = useCallback((e: LayoutChangeEvent) => {
-    sheetLayoutRef.current = { y: e.nativeEvent.layout.y };
+  // The list sheet rests where it always has - just over the bottom of the
+  // map - and can be dragged up to just below the "Crowdy" title and back
+  // (see SnapSheet). It's laid out at its raised size and moved down while
+  // resting, so the list never re-lays-out mid-drag; the list gets extra
+  // bottom padding while resting so its last rows can still scroll into view.
+  const [screenHeight, setScreenHeight] = useState(Dimensions.get("window").height);
+  const raisedTop = insets.top + BRAND_CLEARANCE;
+  const restingTop = screenHeight * MAP_FRACTION - SHEET_OVERLAP;
+  const sheet = useSnapSheet(Math.max(0, restingTop - raisedTop));
+  const handleScreenLayout = useCallback((e: LayoutChangeEvent) => {
+    setScreenHeight(e.nativeEvent.layout.height);
   }, []);
+
+  // When the keyboard opens on the search tab, the sheet is raised so the
+  // search box clears the keyboard, and the list is sized to the room left
+  // above it (with at least SEARCH_LIST_MIN_HEIGHT). FlatList needs that
+  // explicit height to size its viewport. When the keyboard closes, the
+  // sheet goes back to wherever it was before. "keyboardWillShow"/"Hide"
+  // are iOS-only, so Android uses the "Did" variants.
+  const listLayoutRef = useRef({ y: 0 });
+  const raisedBeforeKeyboard = useRef(false);
+  const [searchListHeight, setSearchListHeight] = useState<number | null>(null);
   const handleSearchListLayout = useCallback((e: LayoutChangeEvent) => {
     listLayoutRef.current = { y: e.nativeEvent.layout.y };
   }, []);
+  const { raised, snap } = sheet;
 
   useEffect(() => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
 
     const showSub = Keyboard.addListener(showEvent, (e) => {
-      const screenHeight = Dimensions.get("window").height;
-      const keyboardTop = screenHeight - e.endCoordinates.height;
-      const listTopNatural = sheetLayoutRef.current.y + listLayoutRef.current.y;
-      const naturalAvailable = keyboardTop - listTopNatural;
-      const availableListHeight = Math.max(SEARCH_LIST_MIN_HEIGHT, naturalAvailable);
-      const shift = Math.max(0, listTopNatural + availableListHeight - keyboardTop);
-      setSearchListHeight(availableListHeight);
-      Animated.timing(sheetOffset, {
-        toValue: -shift,
-        duration: e.duration || 250,
-        useNativeDriver: true,
-      }).start();
+      const keyboardTop = Dimensions.get("window").height - e.endCoordinates.height;
+      setSearchListHeight(Math.max(SEARCH_LIST_MIN_HEIGHT, keyboardTop - raisedTop - listLayoutRef.current.y));
+      snap(true);
     });
-    const hideSub = Keyboard.addListener(hideEvent, (e) => {
+    const hideSub = Keyboard.addListener(hideEvent, () => {
       setSearchListHeight(null);
-      Animated.timing(sheetOffset, {
-        toValue: 0,
-        duration: e.duration || 250,
-        useNativeDriver: true,
-      }).start();
+      snap(raisedBeforeKeyboard.current);
     });
     return () => {
       showSub.remove();
       hideSub.remove();
     };
-  }, [sheetOffset]);
+  }, [raisedTop, snap]);
+
+  // Remembers where the sheet was before the keyboard raised it.
+  useEffect(() => {
+    if (searchListHeight === null) raisedBeforeKeyboard.current = raised;
+  }, [raised, searchListHeight]);
 
   // Tapping the already-selected pin/row again deselects it, matching
   // ordinary toggle-select behaviour. Wrapped in useCallback (with no
@@ -432,7 +415,7 @@ export default function HomeScreen({ navigation }: Props) {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]} onLayout={handleScreenLayout}>
       <VenueMap
         initialRegion={region}
         venues={venues}
@@ -448,13 +431,12 @@ export default function HomeScreen({ navigation }: Props) {
       <Text style={[styles.brand, { top: insets.top + 8 }]}>Crowdy</Text>
 
       <Animated.View
-        onLayout={handleSheetLayout}
         style={[
           styles.sheet,
-          activeTab === "search" && searchListHeight != null && styles.sheetCompact,
-          { backgroundColor: colors.background, transform: [{ translateY: sheetOffset }] },
+          { top: raisedTop, backgroundColor: colors.background, transform: [{ translateY: sheet.offset }] },
         ]}
       >
+        <SheetHandle sheet={sheet} />
         <TabBar active={activeTab} onPress={handleTabPress} />
 
         {activeTab === "search" && (
@@ -487,6 +469,8 @@ export default function HomeScreen({ navigation }: Props) {
             styles.list,
             activeTab === "search" && searchListHeight != null && { flex: 0, height: searchListHeight },
           ]}
+          // While resting, the bottom of the sheet sits below the screen.
+          contentContainerStyle={{ paddingBottom: raised ? 0 : Math.max(0, restingTop - raisedTop) }}
           data={listData}
           keyExtractor={(item) => item.id}
           extraData={[selectedVenueId, savedIds]}
@@ -568,19 +552,14 @@ const styles = StyleSheet.create({
     textShadowRadius: 3,
   },
   sheet: {
-    flex: 1,
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    marginTop: -20,
-    paddingTop: 8,
     overflow: "hidden",
   },
-  // Shrinks the sheet to fit its content (tab bar + search row + the
-  // keyboard-sized list below) instead of stretching to fill the rest of
-  // the screen - otherwise the list's explicit height would just leave
-  // blank sheet background below it rather than actually taking up less
-  // room.
-  sheetCompact: { flex: 0 },
   list: { flex: 1 },
   empty: { textAlign: "center", padding: 24 },
   searchRow: {

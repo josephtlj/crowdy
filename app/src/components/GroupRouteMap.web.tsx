@@ -15,6 +15,7 @@ interface Props {
   destinationName: string;
   lines: GroupRouteLine[];
   highlighted: number | null;
+  bottomInset: number;
 }
 
 // react-native-maps has no web renderer, same as RouteMap. The itinerary
