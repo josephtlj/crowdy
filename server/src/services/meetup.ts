@@ -322,6 +322,9 @@ export async function planGroupRoutes(
       } catch (err) {
         failures.push(`${stationId}->${mall.id} (${err instanceof Error ? err.message : String(err)})`);
       }
+      // Station crowd levels on a route are live readings, so they're only
+      // shown for a trip taken now - for a later time they'd be misleading.
+      if (route && at) route = { ...route, steps: route.steps.map(({ crowd: _crowd, ...step }) => step) };
       const minutes = route ? Math.max(1, Math.round(route.durationSeconds / 60)) : estimateMinutes(from, mall);
       const leaveAt = arriving ? new Date(meetAt.getTime() - minutes * 60_000) : meetAt;
       const arriveAt = new Date(leaveAt.getTime() + minutes * 60_000);

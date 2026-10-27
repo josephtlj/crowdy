@@ -54,7 +54,8 @@ flowchart LR
 - **Accounts and favourites** — save venues on the device as a guest, or sign in to sync them across devices.
 - **In-app directions** — transit, walking, driving and cycling routes to a venue via OneMap, drawn on Crowdy's own map, with the live crowd level at each MRT/LRT station you board. *Implemented by Oscar.*
 - **Friends** — add friends by username, accept or decline requests, and set a home station. A friend's home station is only shared once both sides have accepted.
-- **Meetup planner** — pick 2–6 people (yourself, friends with a home station, or anyone by station), choose what matters most — *fairest trip* (no one travels much longer than the rest), *fastest overall* (lowest average trip) or *quietest* (least crowded mall within a reasonable trip) — and when you'll meet (now, or a day up to a week ahead with an hour on a slider), and get the top 3 malls with each person's transit time and the mall's crowd level at that time. A later time uses each mall's usual crowd at that hour from its Popular Times week, and that time's train and bus timetable. Signed-in people are listed first (you, then friends), then everyone else, and each person keeps one colour throughout. *See everyone's routes* on a suggestion shows each person's trip on one map in their colour, with leave and arrive times and step-by-step directions; with a meeting time chosen, everyone can either leave at that time or arrive by it.
+- **Meetup planner** — pick 2–6 people (yourself, friends with a home station, or anyone by station), choose what matters most — *fairest trip* (no one travels much longer than the rest), *fastest overall* (lowest average trip) or *quietest* (least crowded mall within a reasonable trip) — and when you'll meet (now, or a day up to a week ahead with an hour on a slider), and get the top 3 malls with each person's transit time and the mall's crowd level at that time. A later time uses each mall's usual crowd at that hour from its Popular Times week, and that time's train and bus timetable. Signed-in people are listed first (you, then friends), then everyone else, and each person keeps one colour throughout. *See everyone's routes* on a suggestion shows each person's trip on one map in their colour, with leave and arrive times and step-by-step directions; tapping someone highlights their trip in its real line colours. With a meeting time chosen, everyone can either leave at that time or arrive by it. Live station crowd levels appear on the steps only for a trip taken now, since they'd be misleading for a later time.
+- **Draggable lists** — the venue list on the home map, the Directions steps and the group routes list each have a grab bar: drag (or tap) to raise the list for more room, and back down to see the map.
 - **Light and dark mode** — follows the user's choice in Settings, remembered on the device along with the language.
 
 ## Tech Stack
@@ -143,7 +144,7 @@ Only one machine scrapes Google Popular Times; every other backend reads the sha
 4. Scan the QR code with **Expo Go** (SDK 58) on the same Wi-Fi as the machine running the backend — the app resolves the backend's address automatically from Metro's own host, no manual config needed. To use another machine's backend instead, set `EXPO_PUBLIC_API_BASE_URL=http://<its address>:4000` in `app/.env` and start with `npx expo start -c`.
 
 ### Running Tests
-- `cd server && npm test` — signup/login validation, favourites and friends routes, nearby alternatives, meetup ranking for each priority and meeting times, opening hours, rate limiting, plus the Lab 4 black-box (`alternatives.blackbox`) and basis path (`openingHours.basisPath`) cases. Uses an in-memory fake database, so it never touches the real one.
+- `cd server && npm test` — signup/login validation, favourites and friends routes, nearby alternatives, meetup ranking for each priority and meeting times, group route request checks, opening hours, rate limiting, plus the Lab 4 black-box (`alternatives.blackbox`) and basis path (`openingHours.basisPath`) cases. Uses an in-memory fake database, so it never touches the real one.
 - `cd app && npm test` — venue search ranking, choosing a meeting time, route instruction translation, and keeping guest saves when merging into an account fails, plus the Lab 4 basis path cases for search (`venueSearch.basisPath`).
 
 ## API Documentation
@@ -184,7 +185,7 @@ Only one machine scrapes Google Popular Times; every other backend reads the sha
 
 ### Meetup — `/meetup` *(10 searches per minute per client)*
 - `POST /meetup` — `stationIds` (2–6 MRT/LRT station ids, one per person, repeats allowed), `priority` (`fair` (default), `fast` or `quiet`) and optionally `at` (an ISO date-time within the next week; left out means now). Shortlists malls by distance, looks up each person's transit time with OneMap (falling back to a marked estimate if a lookup fails), and returns the top 3 malls with every person's travel time and the mall's crowd level. With `at`, crowd levels are each mall's usual level at that hour and routes use that time's timetable. Also says when every mall with crowd data is closed at that time. No sign-in needed, so guests can use it too.
-- `POST /meetup/routes` — `stationIds` (as above, in list order), `venueId` (a mall), optionally `at` (as above) and `timing` (`leave` (default): every trip starts at `at`; `arrive`: each starts early enough to get there by it). Returns each person's public transport route with `minutes`, `leaveAt` and `arriveAt`, in the same order (`route` is null with an estimated `minutes` if OneMap can't plan a trip). Shares the meetup rate limit.
+- `POST /meetup/routes` — `stationIds` (as above, in list order), `venueId` (a mall), optionally `at` (as above) and `timing` (`leave` (default): every trip starts at `at`; `arrive`: each starts early enough to get there by it). Returns each person's public transport route with `minutes`, `leaveAt` and `arriveAt`, in the same order (`route` is null with an estimated `minutes` if OneMap can't plan a trip). Station crowd levels are only included when `at` is left out, as they're live readings. Shares the meetup rate limit.
 
 ## External APIs & Services
 
@@ -214,7 +215,7 @@ Everything else lives in the backend's own cache files.
 - JWT bearer-token authentication, verified on every protected route by the `requireAuth` middleware.
 - Every SQL query is parameterized (`mysql2` placeholders, no string-built queries anywhere) — no SQL injection surface.
 - Login returns the same generic error for a wrong password and for an unregistered username, so it can't be used to check which usernames exist.
-- Rate limiting per client: 10 login/sign-up attempts, 10 meetup searches and 20 friend requests per minute, answered with HTTP 429 and a `Retry-After` header. This slows password guessing and username probing, and stops one client flooding OneMap through the meetup planner.
+- Rate limiting per client: 10 login/sign-up attempts, 10 meetup searches (including group routes), 5 mall refreshes and 20 friend requests per minute, answered with HTTP 429 and a `Retry-After` header. This slows password guessing and username probing, and stops one client flooding OneMap through the meetup planner.
 - A friend request to an unknown username gets a neutral "couldn't send" reply rather than confirming no such account exists.
 - A friend's home station is only visible to accepted friends.
 - Server-side username validation (`/^[a-zA-Z0-9_]{3,24}$/`) rejects anything else before it ever reaches a query.
@@ -226,7 +227,7 @@ Everything else lives in the backend's own cache files.
 crowdy/
 ├── app/                     # Expo/React Native frontend
 │   ├── src/
-│   │   ├── components/      # Map, venue rows, crowd badge, tab bar, charts, station picker
+│   │   ├── components/      # Map, venue rows, crowd badge, tab bar, charts, station picker, draggable sheets, group route map
 │   │   ├── context/         # AuthContext
 │   │   ├── navigation/      # React Navigation route types
 │   │   ├── screens/         # Home, Detail, Directions, Meetup, GroupRoutes, Friends, Settings
