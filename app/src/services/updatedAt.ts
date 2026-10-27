@@ -12,3 +12,18 @@ export function formatUpdatedAt(iso: string, language: "en" | "zh" = "en"): stri
   const sameYear = updated.getFullYear() === now.getFullYear();
   return updated.toLocaleDateString(locale, { day: "numeric", month: "short", ...(sameYear ? {} : { year: "numeric" }) });
 }
+
+/**
+ * The current hour on the dot, e.g. "11:00 PM" at 11:09 pm. A mall's figure is
+ * its usual crowd for the hour, so it is labelled with the hour rather than
+ * the time it was fetched.
+ * @param language - the app's language
+ * @returns the hour text
+ */
+export function formatCurrentHour(language: "en" | "zh" = "en"): string {
+  const hour = new Date();
+  hour.setMinutes(0, 0, 0);
+  // en-US for the capital "PM", which en-SG writes as "pm".
+  const locale = language === "zh" ? "zh-CN" : "en-US";
+  return hour.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
+}

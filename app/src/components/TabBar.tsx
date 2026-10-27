@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../theme/ThemeContext";
 import { useLanguage } from "../i18n/LanguageContext";
 import { StringKey } from "../i18n/strings";
+import { CountBadge } from "./CountBadge";
 
 export type TabKey = "areas" | "saved" | "search" | "meetup" | "settings";
 
@@ -18,22 +19,28 @@ const TABS: { key: TabKey; label: StringKey; icon: keyof typeof Ionicons.glyphMa
 interface Props {
   active: TabKey;
   onPress: (key: TabKey) => void;
+  // A count shown on a tab's icon, e.g. friend requests on Settings.
+  badges?: Partial<Record<TabKey, number>>;
 }
 
-export function TabBar({ active, onPress }: Props) {
+export function TabBar({ active, onPress, badges }: Props) {
   const { colors } = useTheme();
   const { t } = useLanguage();
   return (
     <View style={[styles.bar, { borderBottomColor: colors.border }]}>
       {TABS.map((tab) => {
         const isActive = tab.key === active;
+        const badge = badges?.[tab.key] ?? 0;
         return (
           <TouchableOpacity key={tab.key} style={styles.tab} onPress={() => onPress(tab.key)}>
-            <Ionicons
-              name={tab.icon}
-              size={21}
-              color={isActive ? colors.accent : colors.textMuted}
-            />
+            <View>
+              <Ionicons
+                name={tab.icon}
+                size={21}
+                color={isActive ? colors.accent : colors.textMuted}
+              />
+              {badge > 0 && <CountBadge count={badge} style={styles.badge} />}
+            </View>
             <Text style={[styles.label, { color: isActive ? colors.accent : colors.textMuted }]}>
               {t(tab.label)}
             </Text>
@@ -46,6 +53,7 @@ export function TabBar({ active, onPress }: Props) {
 }
 
 const styles = StyleSheet.create({
+  badge: { position: "absolute", top: -4, right: -10 },
   bar: {
     flexDirection: "row",
     borderBottomWidth: StyleSheet.hairlineWidth,

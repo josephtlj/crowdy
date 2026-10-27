@@ -202,10 +202,14 @@ export default function DetailScreen({ route, navigation }: Props) {
 
       <View style={styles.updatedRow}>
         <Text style={[styles.updated, styles.updatedText, { color: colors.textMuted }]}>
-          {t("detail.updated", {
-            time: formatUpdatedAt(venue.lastUpdated, language),
-            source: sourceLabel(venue.source, language),
-          })}
+          {/* A mall's figure is its usual crowd for this hour, so it is
+              labelled as such rather than with the time it was fetched. */}
+          {venue.category !== "Transit" && venue.crowdLevel !== "Unavailable"
+            ? t("detail.typicalNow", { source: sourceLabel(venue.source, language) })
+            : t("detail.updated", {
+                time: formatUpdatedAt(venue.lastUpdated, language),
+                source: sourceLabel(venue.source, language),
+              })}
         </Text>
         {/* Malls only - station crowds come live from LTA and need no refresh. */}
         {venue.category !== "Transit" && (

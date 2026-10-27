@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { NavigationContainer, DefaultTheme, DarkTheme, Theme } from "@react-navigation/native";
+import { NavigationContainer, DefaultTheme, DarkTheme, Theme, createNavigationContainerRef } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -7,6 +7,7 @@ import { RootStackParamList } from "./src/navigation/types";
 import { ThemeProvider, useTheme } from "./src/theme/ThemeContext";
 import { LanguageProvider, useLanguage } from "./src/i18n/LanguageContext";
 import { AuthProvider } from "./src/context/AuthContext";
+import { FriendRequestsProvider } from "./src/context/FriendRequestsContext";
 import HomeScreen from "./src/screens/HomeScreen";
 import DetailScreen from "./src/screens/DetailScreen";
 import DirectionsScreen from "./src/screens/DirectionsScreen";
@@ -16,6 +17,13 @@ import GroupRoutesScreen from "./src/screens/GroupRoutesScreen";
 import FriendsScreen from "./src/screens/FriendsScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+// Lets the friend request alert open the Friends screen from outside any screen.
+const navigationRef = createNavigationContainerRef<RootStackParamList>();
+
+function openFriends() {
+  if (navigationRef.isReady()) navigationRef.navigate("Friends");
+}
 
 // Reads the theme (must be inside ThemeProvider) to colour both the native
 // header chrome (back button, title bar) and React Navigation's own
@@ -53,30 +61,32 @@ function Navigation() {
   );
 
   return (
-    <NavigationContainer theme={navTheme}>
-      {/* Without this the status bar icons (time/wifi/battery) stay dark
-          regardless of app theme - invisible against a dark background on
-          screens like Settings that fill the whole top edge. */}
-      <StatusBar style={mode === "dark" ? "light" : "dark"} />
-      {/* headerBackButtonDisplayMode "minimal" drops the "Home" text label,
-          leaving just the chevron - this is very likely iOS's own native
-          interactive-transition chrome (the back button legitimately
-          highlights mid-swipe on every UIKit app; it's just far more
-          visible against a dark header than a light one), not a bug in our
-          code, so it's not something removable without giving up the real
-          native header/swipe-back gesture. Dropping the label at least
-          removes the more noticeable part of what flashes. */}
-      <Stack.Navigator screenOptions={{ headerBackButtonDisplayMode: "minimal" }}>
-        <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="Detail" component={DetailScreen} options={{ title: t("screen.venue") }} />
-        {/* Title is replaced with the destination's name once it loads. */}
-        <Stack.Screen name="Directions" component={DirectionsScreen} options={{ title: t("screen.directions") }} />
-        <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: t("screen.settings") }} />
-        <Stack.Screen name="Meetup" component={MeetupScreen} options={{ title: t("screen.meetup") }} />
-        <Stack.Screen name="GroupRoutes" component={GroupRoutesScreen} options={{ title: t("screen.groupRoutes") }} />
-        <Stack.Screen name="Friends" component={FriendsScreen} options={{ title: t("screen.friends") }} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <FriendRequestsProvider onView={openFriends}>
+      <NavigationContainer ref={navigationRef} theme={navTheme}>
+        {/* Without this the status bar icons (time/wifi/battery) stay dark
+            regardless of app theme - invisible against a dark background on
+            screens like Settings that fill the whole top edge. */}
+        <StatusBar style={mode === "dark" ? "light" : "dark"} />
+        {/* headerBackButtonDisplayMode "minimal" drops the "Home" text label,
+            leaving just the chevron - this is very likely iOS's own native
+            interactive-transition chrome (the back button legitimately
+            highlights mid-swipe on every UIKit app; it's just far more
+            visible against a dark header than a light one), not a bug in our
+            code, so it's not something removable without giving up the real
+            native header/swipe-back gesture. Dropping the label at least
+            removes the more noticeable part of what flashes. */}
+        <Stack.Navigator screenOptions={{ headerBackButtonDisplayMode: "minimal" }}>
+          <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Detail" component={DetailScreen} options={{ title: t("screen.venue") }} />
+          {/* Title is replaced with the destination's name once it loads. */}
+          <Stack.Screen name="Directions" component={DirectionsScreen} options={{ title: t("screen.directions") }} />
+          <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: t("screen.settings") }} />
+          <Stack.Screen name="Meetup" component={MeetupScreen} options={{ title: t("screen.meetup") }} />
+          <Stack.Screen name="GroupRoutes" component={GroupRoutesScreen} options={{ title: t("screen.groupRoutes") }} />
+          <Stack.Screen name="Friends" component={FriendsScreen} options={{ title: t("screen.friends") }} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </FriendRequestsProvider>
   );
 }
 

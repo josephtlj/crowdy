@@ -13,6 +13,8 @@ import {
 } from "react-native";
 import { useTheme } from "../theme/ThemeContext";
 import { useAuth } from "../context/AuthContext";
+import { useFriendRequests } from "../context/FriendRequestsContext";
+import { CountBadge } from "../components/CountBadge";
 import { useLanguage } from "../i18n/LanguageContext";
 import { Language } from "../i18n/strings";
 
@@ -31,6 +33,7 @@ export default function SettingsScreen({ navigation }: Props) {
   const { mode, colors, toggleTheme } = useTheme();
   const { language, setLanguage, t, errorText } = useLanguage();
   const auth = useAuth();
+  const { incoming: friendRequests } = useFriendRequests();
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -110,7 +113,10 @@ export default function SettingsScreen({ navigation }: Props) {
           onPress={() => navigation.navigate("Friends")}
         >
           <Text style={[styles.rowLabel, { color: colors.text }]}>{t("settings.friends")}</Text>
-          <Text style={[styles.rowLabel, { color: colors.textMuted }]}>›</Text>
+          <View style={styles.friendsRowEnd}>
+            {friendRequests.length > 0 && <CountBadge count={friendRequests.length} />}
+            <Text style={[styles.rowLabel, { color: colors.textMuted }]}>›</Text>
+          </View>
         </TouchableOpacity>
       ) : null}
 
@@ -195,6 +201,7 @@ const styles = StyleSheet.create({
   },
   rowLabel: { fontSize: 15, fontWeight: "500" },
   friendsRow: { marginTop: 10 },
+  friendsRowEnd: { flexDirection: "row", alignItems: "center", gap: 8 },
   logoutButton: { alignSelf: "flex-start" },
   logoutText: { fontSize: 14, fontWeight: "600" },
   input: {

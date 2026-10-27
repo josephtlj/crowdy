@@ -6,7 +6,7 @@ import { CategoryPin } from "./CategoryPin";
 import { VenueCategory, CrowdLevel } from "../types/venue";
 import { ThemeColors } from "../theme/ThemeContext";
 import { getTodayStatus, OpenHoursEntry } from "../services/hours";
-import { formatUpdatedAt } from "../services/updatedAt";
+import { formatCurrentHour, formatUpdatedAt } from "../services/updatedAt";
 import { useLanguage } from "../i18n/LanguageContext";
 import { formatHoursDetail, StringKey } from "../i18n/strings";
 
@@ -58,6 +58,8 @@ function VenueRowBase({
 }: Props) {
   const { t, language } = useLanguage();
   const transitStatus = category === "Transit" && hours ? getTodayStatus(hours) : null;
+  const mallStatus = category !== "Transit" && hours ? getTodayStatus(hours) : null;
+  const mallClosed = mallStatus !== null && !mallStatus.open;
   const categoryLabel = t(`category.${category}` as StringKey);
 
   return (
@@ -115,7 +117,11 @@ function VenueRowBase({
                 the category label (already on the badge above).
                 "Unavailable" means no reading exists yet - "0% of peak"
                 would misread as an actual low-crowd measurement. */}
-            {category !== "Transit" && crowdLevel !== "Unavailable" && `${t("row.percentOfPeak", { percent: crowdPercent })} · `}
+            {/* A closed mall reads 0% and says when it next opens instead. */}
+            {mallClosed && `${t("row.percentOfPeak", { percent: 0 })}${
+              mallStatus.detail ? ` · ${formatHoursDetail(mallStatus.detail, language)}` : ""
+            }`}
+            {!mallClosed && category !== "Transit" && crowdLevel !== "Unavailable" && `${t("row.percentOfPeak", { percent: crowdPercent })} · `}
             {/* Real first/last train times where known (see
                 stationHours.ts) - a station missing from that data (a
                 small handful of LRT loop stations it isn't covered for)
@@ -124,7 +130,11 @@ function VenueRowBase({
               `${transitStatus.open ? t("row.operating") : t("hours.closed")}${
                 transitStatus.detail ? ` · ${formatHoursDetail(transitStatus.detail, language)}` : ""
               } · `}
-            {t("row.updated", { time: formatUpdatedAt(lastUpdated, language) })}
+            {mallClosed
+              ? null
+              : category !== "Transit" && crowdLevel !== "Unavailable"
+                ? t("row.asOf", { time: formatCurrentHour(language) })
+                : t("row.updated", { time: formatUpdatedAt(lastUpdated, language) })}
           </Text>
           {/* Transit stations are fixed destinations, not interchangeable
               like malls/attractions - no "alternative" makes sense. */}

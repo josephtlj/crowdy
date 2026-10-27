@@ -39,6 +39,7 @@ import { VenueRow } from "../components/VenueRow";
 import { CrowdSnapshot } from "../components/CrowdSnapshot";
 import { VenueMap } from "../components/VenueMap";
 import { TabBar, TabKey } from "../components/TabBar";
+import { useFriendRequests } from "../context/FriendRequestsContext";
 import { useTheme } from "../theme/ThemeContext";
 import { useLanguage } from "../i18n/LanguageContext";
 import { useAuth } from "../context/AuthContext";
@@ -94,6 +95,7 @@ function isWithinRegion(venue: Venue, region: MapRegion): boolean {
  */
 export default function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const { incoming: friendRequests } = useFriendRequests();
   const { colors } = useTheme();
   const { t } = useLanguage();
   const auth = useAuth();
@@ -443,7 +445,7 @@ export default function HomeScreen({ navigation }: Props) {
         ]}
       >
         <SheetHandle sheet={sheet} />
-        <TabBar active={activeTab} onPress={handleTabPress} />
+        <TabBar active={activeTab} onPress={handleTabPress} badges={{ settings: friendRequests.length }} />
 
         {activeTab === "search" && (
           <View style={[styles.searchRow, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
