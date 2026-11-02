@@ -7,20 +7,22 @@ NTU SC2006 Software Engineering, SCSJ Group 3.
 
 <table align="center">
   <tr>
-    <td align="center"><img src="images/new%20versions/IMG_5598.PNG" width="130" /><br /><sub>Home: map and Right now card</sub></td>
-    <td align="center"><img src="images/new%20versions/IMG_5599.PNG" width="130" /><br /><sub>Selected venue card</sub></td>
-    <td align="center"><img src="images/new%20versions/IMG_5611.PNG" width="130" /><br /><sub>Crowd heatmap</sub></td>
-    <td align="center"><img src="images/new%20versions/IMG_5600.PNG" width="130" /><br /><sub>Venue page</sub></td>
-    <td align="center"><img src="images/new%20versions/IMG_5604.PNG" width="130" /><br /><sub>Search</sub></td>
-    <td align="center"><img src="images/new%20versions/IMG_5605.PNG" width="130" /><br /><sub>Saved venues</sub></td>
+    <td align="center" width="25%"><img src="images/new%20versions/IMG_5598.PNG" width="160" /><br /><sub>Home and Right now card</sub></td>
+    <td align="center" width="25%"><img src="images/new%20versions/IMG_5599.PNG" width="160" /><br /><sub>Selected venue card</sub></td>
+    <td align="center" width="25%"><img src="images/new%20versions/IMG_5611.PNG" width="160" /><br /><sub>Crowd heatmap</sub></td>
+    <td align="center" width="25%"><img src="images/new%20versions/IMG_5600.PNG" width="160" /><br /><sub>Venue page</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="images/new%20versions/IMG_5481.PNG" width="130" /><br /><sub>In-app directions</sub></td>
-    <td align="center"><img src="images/new%20versions/IMG_5612.PNG" width="130" /><br /><sub>Meetup planner</sub></td>
-    <td align="center"><img src="images/new%20versions/IMG_5614.PNG" width="130" /><br /><sub>Suggested places</sub></td>
-    <td align="center"><img src="images/new%20versions/IMG_5615.PNG" width="130" /><br /><sub>Everyone's routes</sub></td>
-    <td align="center"><img src="images/new%20versions/IMG_5618.PNG" width="130" /><br /><sub>Friends</sub></td>
-    <td align="center"><img src="images/new%20versions/IMG_5622.PNG" width="130" /><br /><sub>Friend request alert</sub></td>
+    <td align="center" width="25%"><img src="images/new%20versions/IMG_5604.PNG" width="160" /><br /><sub>Search</sub></td>
+    <td align="center" width="25%"><img src="images/new%20versions/IMG_5605.PNG" width="160" /><br /><sub>Saved venues</sub></td>
+    <td align="center" width="25%"><img src="images/new%20versions/IMG_5481.PNG" width="160" /><br /><sub>In-app directions</sub></td>
+    <td align="center" width="25%"><img src="images/new%20versions/IMG_5612.PNG" width="160" /><br /><sub>Meetup planner</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="25%"><img src="images/new%20versions/IMG_5614.PNG" width="160" /><br /><sub>Suggested places</sub></td>
+    <td align="center" width="25%"><img src="images/new%20versions/IMG_5615.PNG" width="160" /><br /><sub>Everyone's routes</sub></td>
+    <td align="center" width="25%"><img src="images/new%20versions/IMG_5618.PNG" width="160" /><br /><sub>Friends</sub></td>
+    <td align="center" width="25%"><img src="images/new%20versions/IMG_5622.PNG" width="160" /><br /><sub>Friend request alert</sub></td>
   </tr>
 </table>
 
