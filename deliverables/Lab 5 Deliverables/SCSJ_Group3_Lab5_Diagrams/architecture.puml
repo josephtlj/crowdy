@@ -1,0 +1,148 @@
+@startuml
+' Crowdy - system architecture (Lab 5)
+skinparam dpi 150
+skinparam defaultFontName Helvetica
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam packageStyle folder
+skinparam package {
+  BorderColor #555555
+  BackgroundColor #FAFAFA
+}
+skinparam linetype ortho
+skinparam nodesep 30
+skinparam ranksep 45
+skinparam rectangle {
+  BorderColor #555555
+  BackgroundColor<<layer>> #FAFAFA
+}
+skinparam component {
+  BorderColor #555555
+  BackgroundColor<<boundary>> #FFF3C4
+  BackgroundColor<<control>> #FBD9D9
+  BackgroundColor<<integration>> #F6E3F3
+  BackgroundColor<<startup>> #E3F2E1
+}
+skinparam database {
+  BorderColor #555555
+  BackgroundColor #D6E6FB
+}
+skinparam cloud {
+  BorderColor #555555
+  BackgroundColor #FFFFFF
+}
+
+rectangle "Mobile App (Expo / React Native, on the user's phone)" as App {
+  package "Presentation Layer" as AppPres {
+    component "MainUI\n(Areas · Saved · Search)" as MainUI <<boundary>>
+    component "MapUI +\nCrowdSnapshotUI" as MapUI <<boundary>>
+    component "VenueDetailUI" as DetailUI <<boundary>>
+    component "DirectionsUI" as DirUI <<boundary>>
+    component "SettingsUI" as SetUI <<boundary>>
+    component "FriendsUI" as FriendsUI <<boundary>>
+    component "MeetupUI +\nGroupRoutesUI" as MeetUI <<boundary>>
+  }
+  package "App Logic Layer" as AppLogic {
+    component "SessionController" as Sess <<control>>
+    component "LanguageController ·\nThemeController" as Lang <<control>>
+    component "FriendRequestsController" as FReq <<control>>
+    component "SavedVenuesController" as Saved <<control>>
+    component "SearchController" as Search <<control>>
+    component "LocationController" as Loc <<control>>
+    component "ApiClient\n«Facade»" as Api <<control>>
+  }
+  database "On-device storage\n(session in secure storage;\nguest saves, language, theme)" as Phone
+}
+
+rectangle "Backend Server (Node.js / Express)" as Server {
+  package "Interface Layer (REST API)" as Routes {
+    component "/venues" as RVen <<control>>
+    component "/directions" as RDir <<control>>
+    component "/heatmap" as RHeat <<control>>
+    component "/auth" as RAuth <<control>>
+    component "/favourites\n+ RequireAuth" as RFav <<control>>
+    component "/friends\n+ RequireAuth" as RFr <<control>>
+    component "/meetup" as RMeet <<control>>
+    component "RateLimiter\n(sign-in, refresh,\nfriends, meetup)" as Rate <<control>>
+  }
+  package "Application Logic Layer" as SrvLogic {
+    component "CrowdAggregator\n«Facade»" as Agg <<control>>
+    component "PopularTimesService" as PTS <<control>>
+    component "PopularTimesScheduler" as Sched <<control>>
+    component "AlternativesFinder ·\nPinDeclutterer" as Helpers <<control>>
+    component "HeatmapRenderer" as Heat <<control>>
+    component "DirectionsBuilder" as Dir <<control>>
+    component "MeetupPlanner" as Meet <<control>>
+  }
+  package "Integration Layer" as Integ {
+    component "LtaClient\n«Adapter»" as Lta <<integration>>
+    component "GoogleMapsScraper\n«Adapter»" as Scraper <<integration>>
+    component "OneMapClient\n«Adapter»" as OneMapC <<integration>>
+    component "BrowserManager\n«Singleton»" as Browser <<integration>>
+    component "PopularTimesStore\n«Repository»" as Store <<integration>>
+    component "DatabasePool\n«Singleton»" as Pool <<integration>>
+  }
+  database "Local Popular Times\ncache (JSON file)" as LocalCache
+}
+
+package "Data Layer" as DataLayer {
+  database "MySQL on Aiven\n(hosted, over SSL)\naccounts · favourites ·\nfriendships · home_stations ·\npopular_times_cache" as MySQL
+}
+
+package "External Services" as Ext {
+  cloud "LTA DataMall\n(station crowds,\ncarpark lots)" as LTA
+  cloud "Google Maps\n(Popular Times,\nsigned-in profile)" as GMaps
+  cloud "OneMap\n(routing)" as OM
+}
+
+MainUI --> Search
+MainUI --> Saved
+DetailUI --> Saved
+SetUI --> Sess
+SetUI --> Lang
+SetUI --> FReq
+FriendsUI --> Api
+MeetUI --> Api
+FReq --> Api
+DirUI --> Loc
+MapUI --> Loc
+Sess --> Api
+Saved --> Api
+MainUI --> Api
+DetailUI --> Api
+DirUI --> Api
+Sess --> Phone
+Saved --> Phone
+Lang --> Phone
+
+Api --> Routes : HTTP + JSON
+
+RVen --> Agg
+RVen --> PTS
+RVen --> Helpers
+RHeat --> Heat
+RDir --> Dir
+RMeet --> Meet
+Meet --> Agg
+Meet --> OneMapC
+RFr --> Pool
+Heat --> Agg
+Dir --> Agg
+Agg --> PTS
+Agg --> Lta
+Sched --> PTS
+PTS --> Scraper
+PTS --> Store
+PTS --> LocalCache
+Heat --> Browser
+Scraper --> Browser
+Dir --> OneMapC
+RAuth --> Pool
+RFav --> Pool
+Store --> Pool
+
+Lta -right-> LTA
+Scraper -right-> GMaps : headless Chrome
+OneMapC -right-> OM
+Pool --> MySQL
+@enduml

@@ -1,0 +1,106 @@
+@startuml
+left to right direction
+skinparam shadowing false
+skinparam dpi 150
+skinparam defaultFontName Helvetica
+skinparam usecase {
+  BackgroundColor #F2F2F2
+  BorderColor #555555
+}
+skinparam rectangle {
+  BorderColor #777777
+}
+skinparam ArrowColor #555555
+skinparam packageStyle rectangle
+skinparam nodesep 14
+skinparam ranksep 50
+actor User
+actor "Registered\nUser" as RUser
+actor System
+User <|-- RUser
+rectangle "Crowdy" {
+  rectangle "Map & Discovery" {
+    usecase "Toggle Map Layer\n(#2-2)" as Toggle
+    usecase "Recentre Map\n(#2-3)" as Recentre
+    usecase "Search Venue\n(#5-1)" as Search
+    usecase "View Crowd Heatmap\n(#4-1)" as Heatmap
+    usecase "Generate Heatmap Image\n(#4-2)" as GenHeat
+    usecase "View Venue Detail\n(#3-1)" as Detail
+    usecase "View Alternatives\n(#3-2)" as Alt
+    usecase "Get Directions\n(#3-3)" as Directions
+    usecase "Refresh Venue Crowd Data\n(#3-4)" as Refresh
+    usecase "View Nearby Venues\n(#2-1)" as Nearby
+    usecase "View Crowd Snapshot\n(#2-4)" as Snapshot
+  }
+  rectangle "Meetup" {
+    usecase "Plan Meetup\n(#9-1)" as Plan
+    usecase "View Group Routes\n(#9-2)" as Routes
+  }
+  rectangle "Background Processing" {
+    usecase "Aggregate Crowd Data\n(#1-1)" as Agg
+    usecase "Fetch Transit Crowd Data\n(#1-2)" as Fetch
+    usecase "Scrape Popular Times\n(#1-3)" as Scrape
+    usecase "Declutter Overlapping Pins\n(#1-4)" as Declutter
+    usecase "Sync Popular Times Cache\n(#1-5)" as Sync
+  }
+  rectangle "Accounts & Preferences" {
+    usecase "Change Language\n(#7-1)" as Lang
+    usecase "Change Theme\n(#7-2)" as Theme
+    usecase "View Saved Venues\n(#6-5)" as Saved
+    usecase "Manage Favourites\n(#6-4)" as Fav
+    usecase "Account Authentication\n(#6-1)" as Auth
+    usecase "Login Account\n(#6-2)" as Login
+    usecase "Create Account\n(#6-3)" as Create
+    usecase "Log Out\n(#6-6)" as Logout
+  }
+  rectangle "Friends" {
+    usecase "Notify Friend Requests\n(#8-5)" as Notify
+    usecase "Send Friend Request\n(#8-1)" as SendReq
+    usecase "Respond To Friend Request\n(#8-2)" as Respond
+    usecase "Remove Friend\n(#8-3)" as Remove
+    usecase "Set Home Station\n(#8-4)" as Home
+  }
+}
+User --> Toggle
+User --> Recentre
+User --> Search
+User --> Heatmap
+User --> Detail
+User --> Nearby
+User --> Plan
+User --> Lang
+User --> Theme
+User --> Fav
+User --> Saved
+User --> Auth
+RUser --> Logout
+RUser --> SendReq
+RUser --> Respond
+RUser --> Remove
+RUser --> Home
+Nearby ..> Snapshot : <<include>>
+Nearby ..> Agg : <<include>>
+Heatmap ..> GenHeat : <<include>>
+Detail ..> Alt : <<include>>
+Detail <.. Directions : <<extend>>
+Detail <.. Refresh : <<extend>>
+Refresh ..> Scrape : <<include>>
+Plan <.. Routes : <<extend>>
+Auth ..> Login : <<include>>
+Auth ..> Create : <<include>>
+Auth ..> Notify : <<include>>
+Auth <.[norank]. Fav : <<extend>>
+Agg ..> Fetch : <<include>>
+Agg ..> Scrape : <<include>>
+Agg ..> Declutter : <<include>>
+Agg ..> Sync : <<include>>
+Agg <-- System
+Fetch -[hidden]-> System
+RUser --> Notify
+skinparam legendBorderColor #FFFFFF
+skinparam legendBackgroundColor #FFFFFF
+legend bottom left
+<i>Each «include» or «extend» label sits above its dashed line, or beside it where the line runs up and down.</i>
+<i>The arrow points to the use case being included or extended.</i>
+endlegend
+@enduml
