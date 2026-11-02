@@ -1,28 +1,33 @@
 # Crowdy
 
-NTU SC2006 Software Engineering.
+NTU SC2006 Software Engineering, SCSJ Group 3.
+
+**Lab deliverables:** see [`deliverables/`](deliverables/) on `main`. The Lab 5 index, with the SRS, use cases, diagrams and test cases, is [`deliverables/Lab 5 Deliverables/README.md`](deliverables/Lab%205%20Deliverables/README.md).
 
 
 <table align="center">
   <tr>
-    <td align="center"><img src="images/new%20versions/IMG_5465.PNG" width="150" /><br /><sub>Crowdy Home Page</sub></td>
-    <td align="center"><img src="images/new%20versions/IMG_5468.PNG" width="150" /><br /><sub>MRT/LRT stations</sub></td>
-    <td align="center"><img src="images/new%20versions/IMG_5466.PNG" width="150" /><br /><sub>Heatmap Overlay</sub></td>
-    <td align="center"><img src="images/new%20versions/IMG_5471.PNG" width="150" /><br /><sub>Selected and Saved Venues</sub></td>
-    <td align="center"><img src="images/new%20versions/IMG_5480.PNG" width="150" /><br /><sub>Venue Details</sub></td>
+    <td align="center"><img src="images/new%20versions/IMG_5598.PNG" width="130" /><br /><sub>Home: map and Right now card</sub></td>
+    <td align="center"><img src="images/new%20versions/IMG_5599.PNG" width="130" /><br /><sub>Selected venue card</sub></td>
+    <td align="center"><img src="images/new%20versions/IMG_5611.PNG" width="130" /><br /><sub>Crowd heatmap</sub></td>
+    <td align="center"><img src="images/new%20versions/IMG_5600.PNG" width="130" /><br /><sub>Venue page</sub></td>
+    <td align="center"><img src="images/new%20versions/IMG_5604.PNG" width="130" /><br /><sub>Search</sub></td>
+    <td align="center"><img src="images/new%20versions/IMG_5605.PNG" width="130" /><br /><sub>Saved venues</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="images/new%20versions/IMG_5472.PNG" width="150" /><br /><sub>Search Function</sub></td>
-    <td align="center"><img src="images/new%20versions/IMG_5473.PNG" width="150" /><br /><sub>Meetup Planner (with Friends)</sub></td>
-    <td align="center"><img src="images/new%20versions/IMG_5481.PNG" width="150" /><br /><sub>In-built Routing Planner</sub></td>
-    <td align="center"><img src="images/new%20versions/IMG_5482.PNG" width="150" /><br /><sub>Detailed Route Plan</sub></td>
+    <td align="center"><img src="images/new%20versions/IMG_5481.PNG" width="130" /><br /><sub>In-app directions</sub></td>
+    <td align="center"><img src="images/new%20versions/IMG_5612.PNG" width="130" /><br /><sub>Meetup planner</sub></td>
+    <td align="center"><img src="images/new%20versions/IMG_5614.PNG" width="130" /><br /><sub>Suggested places</sub></td>
+    <td align="center"><img src="images/new%20versions/IMG_5615.PNG" width="130" /><br /><sub>Everyone's routes</sub></td>
+    <td align="center"><img src="images/new%20versions/IMG_5618.PNG" width="130" /><br /><sub>Friends</sub></td>
+    <td align="center"><img src="images/new%20versions/IMG_5622.PNG" width="130" /><br /><sub>Friend request alert</sub></td>
   </tr>
 </table>
 
 
 ## Overview
 
-Crowdy is a Singapore-only app for checking real-time crowd levels at MRT/LRT stations and shopping malls/attractions before heading there, with lower-crowd alternatives of the same type surfaced nearby when one exists. Groups of friends can also ask it where to meet: it suggests malls that are fair to reach for everyone and not too crowded. It's built as two independent pieces — an Expo/React Native app and a Node/Express backend.
+Crowdy is a Singapore-only app for checking real-time crowd levels at MRT/LRT stations and shopping malls before heading there, with lower-crowd alternatives of the same type surfaced nearby when one exists. Groups of friends can also ask it where to meet: it suggests malls that are fair to reach for everyone and not too crowded. It's built as two independent pieces — an Expo/React Native app and a Node/Express backend.
 
 ```mermaid
 flowchart LR
@@ -45,16 +50,17 @@ flowchart LR
 *(Dashed arrows = one-off/build-time only, not fetched while the app is running.)*
 
 ### Features
-- **Live crowd levels** — MRT/LRT stations from LTA DataMall, malls from Google Popular Times, with each mall's typical week as an hourly chart.
+- **Live crowd levels** — MRT/LRT stations from LTA DataMall, malls from Google Popular Times, with each mall's typical week as an hourly chart and its opening hours. A mall's figure is labelled as its typical level for the hour, and a Refresh button fetches a fresh reading (at most once every 15 minutes per mall).
 - **Nearby alternatives** — lower-crowd venues of the same type within 3km.
-- **Right now card** — the home screen opens on mall pins and a card summing up all malls at a glance (how many are quiet, moderate, busy or closed), the crowd level most places within 2 km share, and the quietest open mall nearby.
-- **Map and heatmap** — crowd-coloured pins, a rail-line layer, and an island-wide crowd heatmap overlay (iOS) where only busy malls and stations (Moderate and above) glow, so hotspots stand out.
+- **Right now card** — the home screen opens on mall dots and a card summing up all malls at a glance (how many are quiet, moderate, busy or closed), the crowd level most places within 2 km share, and the quietest open mall nearby.
+- **Map and heatmap** — crowd-coloured dots, a rail-line layer, and an island-wide crowd heatmap overlay (iOS) where only busy malls and stations (Moderate and above) glow, so hotspots stand out.
 - **Search** — find any tracked venue by name, address or postal code, forgiving small typos in names. *Address, postal code and typo search implemented by Yikai.*
 - **English / 中文** — switch the whole app between English and Simplified Chinese in Settings. *Implemented by Yikai.*
 - **Accounts and favourites** — save venues on the device as a guest, or sign in to sync them across devices.
 - **In-app directions** — transit, walking, driving and cycling routes to a venue via OneMap, drawn on Crowdy's own map, with the live crowd level at each MRT/LRT station you board. *Implemented by Oscar.*
-- **Friends** — add friends by username, accept or decline requests, and set a home station. A friend's home station is only shared once both sides have accepted.
-- **Meetup planner** — pick 2–6 people (yourself, friends with a home station, or anyone by station), choose what matters most — *fairest trip* (no one travels much longer than the rest), *fastest overall* (lowest average trip) or *quietest* (least crowded mall within a reasonable trip) — and when you'll meet (now, or a day up to a week ahead with an hour on a slider), and get the top 3 malls with each person's transit time and the mall's crowd level at that time. A later time uses each mall's usual crowd at that hour from its Popular Times week, and that time's train and bus timetable. Signed-in people are listed first (you, then friends), then everyone else, and each person keeps one colour throughout. *See everyone's routes* on a suggestion shows each person's trip on one map in their colour, with leave and arrive times and step-by-step directions; tapping someone highlights their trip in its real line colours. With a meeting time chosen, everyone can either leave at that time or arrive by it. Live station crowd levels appear on the steps only for a trip taken now, since they'd be misleading for a later time.
+- **Friends** — add friends by username, accept or decline requests, and set a home station. A friend's home station is only shared once both sides have accepted. A new request pops up the next time the other person signs in or returns to the app, with a red count on the Settings tab and Friends row until it's answered.
+- **Venue cards** — the Areas, Saved and Search lists show venues as rounded cards. Tapping one expands it in place, fades the other map dots and holds the list still while the map moves to it.
+- **Meetup planner** — pick 2–6 people (yourself, friends with a home station, or anyone by station), choose what matters most — *fairest trip* (no one travels much longer than the rest), *fastest overall* (lowest average trip) or *quietest* (least crowded mall within a reasonable trip) — and when you'll meet (now, or a day up to a week ahead with an hour on a slider), and get the top 3 malls with each person's transit time and the mall's crowd level at that time. A later time uses each mall's usual crowd at that hour from its Popular Times week, and that time's train and bus timetable. Signed-in people are listed first (you, then friends), then everyone else, and each person keeps one colour throughout. *See everyone's routes* on a suggestion shows each person's trip on one map in their colour, with leave and arrive times and step-by-step directions. Tapping someone highlights their trip in its real line colours. With a meeting time chosen, everyone can either leave at that time or arrive by it. Live station crowd levels appear on the steps only for a trip taken now, since they'd be misleading for a later time.
 - **Draggable lists** — the venue list on the home map, the Directions steps and the group routes list each have a grab bar: drag (or tap) to raise the list for more room, and back down to see the map.
 - **Light and dark mode** — follows the user's choice in Settings, remembered on the device along with the language.
 
@@ -69,10 +75,10 @@ flowchart LR
 - **Other**: `cors`, native `process.loadEnvFile()` for `.env` loading (no `dotenv` dependency needed)
 
 ### Frontend
-- **Framework**: Expo / React Native, TypeScript — one codebase targeting iOS, Android, and web
+- **Framework**: Expo / React Native, TypeScript, run in Expo Go (SDK 58). Built and tested for iOS. Android and Web run but have no map (see Known Limitations)
 - **Navigation**: React Navigation (native stack)
-- **Maps**: `react-native-maps` (Apple Maps on iOS by default) + `react-native-map-clustering`
-- **State**: React Context (`AuthContext`, `ThemeContext`) — no external state library
+- **Maps**: `react-native-maps` (Apple Maps on iOS) inside `react-native-map-clustering`'s map, with clustering turned off so every venue stays tappable. Venues sharing a spot are spread apart on the server instead
+- **State**: React Context (`AuthContext`, `ThemeContext`, `LanguageContext`, `FriendRequestsContext`) — no external state library
 - **Storage**: `expo-secure-store` (session token), `@react-native-async-storage/async-storage` (on-device saved venues for guests)
 - **Icons**: `@expo/vector-icons`
 
@@ -80,19 +86,19 @@ flowchart LR
 
 ### Backend Architecture
 1. **Resource-oriented routing** — one router per resource (`/venues`, `/lines`, `/auth`, `/favourites`, `/heatmap`, `/directions`, `/friends`, `/meetup`), each owning only its own resource's endpoints.
-2. **Middleware for cross-cutting concerns** — `requireAuth` verifies the bearer token once and attaches the account id (via `res.locals`, not a global type augmentation) before any protected route body runs; `rateLimit` caps how often one client can call login/sign-up, meetup searches and friend requests; `cors()` and `express.json()` are applied globally.
+2. **Middleware for cross-cutting concerns** — `requireAuth` checks the bearer token and attaches the account id before a protected route runs. `rateLimit` caps how often one client can call login/sign-up, mall refreshes, meetup searches and friend requests. CORS only allows the local web build, the `X-Powered-By` header is turned off, and `express.json()` is applied globally.
 3. **Stateless authentication** — JWT bearer tokens (30-day expiry), not server-side sessions. Every request carries everything needed to authenticate it, so the backend holds no per-user connection state.
-4. **Service-layer separation** — each external concern (LTA, carpark lots, Google Popular Times, the heatmap image, alternatives, distance math, auth, meetup ranking, the DB pool) lives in its own file under `services/`. Simple resource CRUD (accounts, favourites, friends) queries the database directly from its route; anything that talks to an external source or does real computation goes through a dedicated service instead.
-5. **Cache-with-TTL, repeated deliberately** — Popular Times, LTA carpark lots, and the rendered heatmap image are each cached with their own freshness window, matched to how often that specific source actually changes (5 minutes for LTA, a week for Popular Times) rather than one blanket policy.
-6. **Consistent error shape** — failures return `{ error: "..." }` with a standard HTTP status (400/401/404/409/429/500/502); the same generic message is used for both "wrong password" and "no such account" on login, so a failed attempt can't be used to enumerate registered usernames.
+4. **Service-layer separation** — each external concern (LTA, carpark lots, Google Popular Times, the heatmap image, alternatives, distance math, auth, meetup ranking, the DB pool) lives in its own file under `services/`. Simple resource CRUD (accounts, favourites, friends) queries the database directly from its route. Anything that talks to an external source or does real computation goes through a service.
+5. **Caching per source** — Popular Times, LTA data and the heatmap image each have their own cache time, set by how often that source changes: 5 minutes for station crowds, 1 minute for carpark lots, 5 minutes for the heatmap and a week for Popular Times.
+6. **Consistent error shape** — failures return `{ error: "..." }` with a standard HTTP status (400/401/404/409/429/500/502). Login gives the same message for a wrong password and an unknown username, so it can't be used to find out which usernames exist.
 7. **Graceful shutdown** — `SIGINT`/`SIGTERM` close the HTTP server, the shared Puppeteer browser, and the DB pool, each bounded by its own timeout so one stuck step can't block the others or the process exit itself.
 
 ### Frontend Architecture
-1. **Platform-specific implementation resolution** — `VenueMap.native.tsx` / `VenueMap.web.tsx`; Metro picks the right one per platform automatically, so nothing consuming `VenueMap` ever branches on platform itself.
-2. **Context/Provider pattern** — `AuthContext` and `ThemeContext` hold cross-cutting state (session, light/dark mode) without prop-drilling it through every screen.
-3. **One service owns the backend, exclusively** — `services/api.ts` is the only file that constructs a request to the backend; every screen calls a named function from it instead of building its own URL/fetch call.
-4. **Local-first, server-synced once signed in** — saved venues work fully offline as a guest (AsyncStorage) and transparently switch to the account's real favourites (MySQL, via the backend) once signed in, with an explicit prompt (not a silent merge) to bring guest saves into the account.
-5. **Optimistic UI updates** — toggling a favourite updates local state immediately and syncs to whichever store is current (device or account) after, rather than waiting on the network round-trip to reflect the change.
+1. **Platform-specific implementation resolution** — `VenueMap.native.tsx` / `VenueMap.web.tsx`. Metro picks the right one for each platform, so code that uses `VenueMap` never checks the platform itself.
+2. **Context/Provider pattern (Observer)** — `AuthContext`, `ThemeContext`, `LanguageContext` and `FriendRequestsContext` hold cross-cutting state (session, light/dark mode, language, waiting friend requests) and notify every screen that uses them when it changes, without prop-drilling.
+3. **One file talks to the backend** — `services/api.ts` is the only file that sends requests to the backend. Every screen calls a named function from it instead of building its own request.
+4. **Saved venues on the phone or the account** — guests' saved venues are kept on the phone (AsyncStorage). After signing in they come from the account (MySQL, through the backend), and the app asks before adding the phone's saves to the account.
+5. **Optimistic updates** — tapping the heart updates the screen straight away, then saves to the phone or the account in the background.
 
 ## SOLID Principles Implementation
 
@@ -100,10 +106,10 @@ flowchart LR
 Each backend service file owns exactly one external concern — `lta.ts` only talks to LTA's API, `popularTimes.ts` only handles the Popular Times scrape, `heatmapImage.ts` only renders the overlay image. On the client, `api.ts` owns backend communication and `savedVenues.ts` owns on-device persistence — neither touches the other's job.
 
 ### Open/Closed
-Adding the heatmap didn't require modifying any existing scraper or route — it's a new, independent service that reads already-computed `Venue` data and exposes its own endpoint. The same is true of the two most recently added sources (Popular Times, then the heatmap image): each was added alongside what existed, not by editing it.
+New features were added as new modules next to the existing ones. The heatmap is its own service and route that reads the existing `Venue` data, and friends and the meetup planner were added as new routes, services and screens without changing the crowd data code.
 
 ### Liskov Substitution
-Every venue-like entity — a mall (Google Popular Times) or a transit station (LTA) — conforms to the same `Venue` interface regardless of its underlying data source, so any code that consumes a `Venue` (the map, the list, the Detail screen) works uniformly without knowing or caring which source it came from.
+Every venue-like entity — a mall (Google Popular Times) or a transit station (LTA) — conforms to the same `Venue` interface regardless of its underlying data source, so the map, the list and the venue page treat every venue the same way, whatever its data source.
 
 ### Interface Segregation
 `api.ts` exposes narrow, purpose-specific functions per need (`getFavourites`, `saveFavourite`, `getHeatmapBounds`, ...) rather than one generic request function every screen has to configure itself.
@@ -125,14 +131,14 @@ Needs Node.js 22.13+, 24.3+ or 26+ (Expo SDK 58 doesn't support the odd-numbered
    DB_NAME=<database name>
    DB_USER=<db user>
    DB_PASSWORD=<db password>
-   DB_SSL_CA_PATH=./certs/aiven-ca.pem   # required for the hosted (Aiven) database; omit for a local MySQL install
+   DB_SSL_CA_PATH=./certs/aiven-ca.pem   # required for the hosted (Aiven) database, leave out for a local MySQL install
    JWT_SECRET=<any random string>
    ONEMAP_EMAIL=<your OneMap account email>       # free account at onemap.gov.sg, used for directions and meetup travel times (meetup falls back to estimates without it)
    ONEMAP_PASSWORD=<your OneMap account password>
    ```
 3. `npm run dev` — starts the backend at `http://localhost:4000`
 
-Only one machine scrapes Google Popular Times; every other backend reads the shared copy from the database, so teammates need nothing extra. On the scraping machine:
+Only one machine scrapes Google Popular Times. Every other backend reads the shared copy from the database, so teammates need nothing extra. On the scraping machine:
 1. Add `POPULAR_TIMES_SCRAPER=on` to `server/.env`. A backend only scrapes when it also has the signed-in profile from step 2, so the team can share one `.env`.
 2. With the backend stopped, run `npm run google-signin`, sign in to the project's Google account in the Chrome window that opens (keep the account in that profile when asked), then quit that window.
 3. Start the backend. The session is stored in `~/.crowdy/google-profile/`, outside the repo — never commit or share it. If the log says the session has expired, repeat step 2.
@@ -174,18 +180,18 @@ Only one machine scrapes Google Popular Times; every other backend reads the sha
 - `GET /heatmap/bounds` — the geographic box that image is rendered against
 
 ### Directions — `/directions`
-- `GET /directions?fromLat=&fromLng=&toId=&mode=` — one route from the user's position to a venue. `mode` is `transit` (default), `walk`, `drive` or `cycle`; one mode per request, since each is its own upstream lookup. Route geometry comes back already decoded, split into per-leg segments carrying their own colour, and every transit leg is annotated with the live crowd level at the station it boards at.
+- `GET /directions?fromLat=&fromLng=&toId=&mode=` — one route from the user's position to a venue. `mode` is `transit` (default), `walk`, `drive` or `cycle`, one mode per request, since each is its own OneMap lookup. Route geometry comes back already decoded, split into per-leg segments carrying their own colour, and every transit leg is annotated with the live crowd level at the station it boards at.
 
 ### Friends — `/friends` *(all require a bearer token)*
 - `GET /friends` — this account's home station, accepted friends (with their home stations), and pending requests sent and received
-- `POST /friends/requests` — send a request (`username`); if that person already sent you one, it is accepted instead. Limited to 20 per minute per client
+- `POST /friends/requests` — send a request (`username`). If that person already sent you one, it is accepted instead. Limited to 20 per minute per client
 - `POST /friends/requests/:accountId/accept` — accept a request that account sent you
 - `DELETE /friends/:accountId` — remove a friend, decline their request, or cancel your own request
 - `PUT /friends/home-station` — set your home station (`stationId`), or clear it with `null`
 
 ### Meetup — `/meetup` *(10 searches per minute per client)*
-- `POST /meetup` — `stationIds` (2–6 MRT/LRT station ids, one per person, repeats allowed), `priority` (`fair` (default), `fast` or `quiet`) and optionally `at` (an ISO date-time within the next week; left out means now). Shortlists malls by distance, looks up each person's transit time with OneMap (falling back to a marked estimate if a lookup fails), and returns the top 3 malls with every person's travel time and the mall's crowd level. With `at`, crowd levels are each mall's usual level at that hour and routes use that time's timetable. Also says when every mall with crowd data is closed at that time. No sign-in needed, so guests can use it too.
-- `POST /meetup/routes` — `stationIds` (as above, in list order), `venueId` (a mall), optionally `at` (as above) and `timing` (`leave` (default): every trip starts at `at`; `arrive`: each starts early enough to get there by it). Returns each person's public transport route with `minutes`, `leaveAt` and `arriveAt`, in the same order (`route` is null with an estimated `minutes` if OneMap can't plan a trip). Station crowd levels are only included when `at` is left out, as they're live readings. Shares the meetup rate limit.
+- `POST /meetup` — `stationIds` (2–6 MRT/LRT station ids, one per person, repeats allowed), `priority` (`fair` (default), `fast` or `quiet`) and optionally `at` (an ISO date-time within the next week, or now if left out). Shortlists malls by distance, looks up each person's transit time with OneMap (falling back to a marked estimate if a lookup fails), and returns the top 3 malls with every person's travel time and the mall's crowd level. With `at`, crowd levels are each mall's usual level at that hour and routes use that time's timetable. Also says when every mall with crowd data is closed at that time. No sign-in needed, so guests can use it too.
+- `POST /meetup/routes` — `stationIds` (as above, in list order), `venueId` (a mall), optionally `at` (as above) and `timing` (`leave`, the default, starts every trip at `at`, and `arrive` starts each one early enough to get there by it). Returns each person's public transport route with `minutes`, `leaveAt` and `arriveAt`, in the same order (`route` is null with an estimated `minutes` if OneMap can't plan a trip). Station crowd levels are only included when `at` is left out, as they're live readings. Shares the meetup rate limit.
 
 ## External APIs & Services
 
@@ -213,13 +219,15 @@ Everything else lives in the backend's own cache files.
 ## Security Features
 - Passwords hashed with bcrypt (`bcryptjs`) — never stored or logged in plain text.
 - JWT bearer-token authentication, verified on every protected route by the `requireAuth` middleware.
-- Every SQL query is parameterized (`mysql2` placeholders, no string-built queries anywhere) — no SQL injection surface.
+- Every SQL query uses `mysql2` placeholders, never strings built from user input, which prevents SQL injection.
 - Login returns the same generic error for a wrong password and for an unregistered username, so it can't be used to check which usernames exist.
 - Rate limiting per client: 10 login/sign-up attempts, 10 meetup searches (including group routes), 5 mall refreshes and 20 friend requests per minute, answered with HTTP 429 and a `Retry-After` header. This slows password guessing and username probing, and stops one client flooding OneMap through the meetup planner.
 - A friend request to an unknown username gets a neutral "couldn't send" reply rather than confirming no such account exists.
 - A friend's home station is only visible to accepted friends.
 - Server-side username validation (`/^[a-zA-Z0-9_]{3,24}$/`) rejects anything else before it ever reaches a query.
-- The connection to the hosted database is TLS-encrypted (required by Aiven); the CA certificate needed for it is committed to the repo, since it only verifies the server's identity and grants no access by itself.
+- The connection to the hosted database is TLS-encrypted (required by Aiven). The CA certificate needed for it is committed to the repo, since it only verifies the server's identity and grants no access by itself.
+- Browsers may only call the backend from the local web build (the phone app is unaffected), and responses don't announce the server software.
+- Scanned with Scantist (dependency and static code analysis, October 2026): no critical findings. The one High finding is in `zod`, used only by Expo's developer tool, with no upstream fix yet. The two server tidy-ups above came from this scan.
 
 ## Repository Structure
 
@@ -228,7 +236,8 @@ crowdy/
 ├── app/                     # Expo/React Native frontend
 │   ├── src/
 │   │   ├── components/      # Map, venue rows, crowd badge, tab bar, charts, station picker, draggable sheets, group route map
-│   │   ├── context/         # AuthContext
+│   │   ├── context/         # AuthContext, FriendRequestsContext
+│   │   ├── i18n/            # English and Chinese strings, LanguageContext
 │   │   ├── navigation/      # React Navigation route types
 │   │   ├── screens/         # Home, Detail, Directions, Meetup, GroupRoutes, Friends, Settings
 │   │   ├── services/        # api.ts (the only file that talks to the backend), local storage, distance/hours helpers
@@ -252,10 +261,10 @@ crowdy/
 ```
 
 ## Known Limitations
-- **Android has no map.** Expo Go's own team made a deliberate decision to drop Google Maps support entirely from Expo Go (confirmed via [react-native-maps#5888](https://github.com/react-native-maps/react-native-maps/issues/5888), closed by the maintainer as "not our bug, an Expo Go decision") — not a bug in this project, and not fixable without leaving Expo Go for a custom development build. iOS is unaffected since it uses Apple Maps by default, not Google Maps.
-- **Web has no map either** — `react-native-maps` has no web renderer at all; the web build shows a placeholder instead. Web was never a real target platform for this project.
+- **Android has no map.** Expo Go dropped Google Maps support ([react-native-maps#5888](https://github.com/react-native-maps/react-native-maps/issues/5888)), and fixing it would mean leaving Expo Go for a custom development build. iOS is unaffected because it uses Apple Maps.
+- **Web has no map either** — `react-native-maps` has no web renderer, so the web build shows a placeholder instead. Web was never a real target platform for this project.
 - **App-to-backend traffic is plain HTTP, not HTTPS** — fine for local development on a shared Wi-Fi network, but not how this would be set up for a real deployment.
-- **The crowd heatmap is iOS-only for now** — see the Features section of the team briefing for why (no gradient/heatmap layer available outside Google Maps, which Expo Go no longer supports).
+- **The crowd heatmap is iOS-only** — `react-native-maps` has no gradient/heatmap layer outside Google Maps, which Expo Go no longer supports.
 
 ## Branches
 - `main` — stable/demo-ready, plus the lab deliverables
