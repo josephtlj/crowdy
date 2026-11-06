@@ -7,6 +7,7 @@ import { fetchLtaCarparkRecords } from "../services/carparks";
 import { spreadOverlappingVenues } from "../services/declutter";
 import { getLatestPopularTimes, OpenHoursEntry } from "../services/popularTimes";
 import { HEATMAP_RADII_M, STATION_HEATMAP_RADII_M } from "../services/heatmap";
+import { completeHoursOnly } from "../services/openingHours";
 
 // Last 6-digit group, so a street number earlier in the address is ignored.
 /**
@@ -73,7 +74,7 @@ async function getMallVenues(): Promise<Venue[]> {
       lastUpdated: popularTimes ? new Date(popularTimes.scrapedAt).toISOString() : now,
       carparks,
       hourly: popularTimes?.hourly,
-      hours: popularTimes?.hours?.length ? popularTimes.hours : FALLBACK_HOURS[mall.id],
+      hours: completeHoursOnly(popularTimes?.hours ?? []).length ? popularTimes!.hours : FALLBACK_HOURS[mall.id],
       heatmapRadiusM: HEATMAP_RADII_M.get(mall.id),
     };
     return venue;

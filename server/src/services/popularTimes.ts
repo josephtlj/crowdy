@@ -6,7 +6,7 @@ import type { Browser } from "puppeteer";
 import { CrowdLevel } from "../types/venue";
 import { loadStoredEntries, storeEntry, StoredEntry } from "./popularTimesStore";
 import { chromePath, googleProfileDir, isScrapingEnabled } from "./googleProfile";
-import { isOpenAt } from "./openingHours";
+import { completeHoursOnly, isOpenAt, parseHoursLabel } from "./openingHours";
 
 puppeteerExtra.use(StealthPlugin());
 
@@ -278,7 +278,7 @@ export function readingAt(result: PopularTimesResult, at: Date): CurrentReading 
   // Older cache entries (scraped before hours extraction existed) simply
   // have no `hours` field - defaulting to empty rather than crashing, same
   // tolerance as any other pre-migration cache entry in this file.
-  const hours = result.hours ?? [];
+  const hours = completeHoursOnly(result.hours ?? []);
   if (!entry || isOpenAt(hours, at) === false) return { crowdPercent: 0, crowdLevel: "Closed", hourly, hours };
   return { crowdPercent: entry.percent, crowdLevel: mapCrowdLevel(entry.percent), hourly, hours };
 }
@@ -466,11 +466,13 @@ async function scrapePopularTimesAttempt(venueName: string): Promise<ScrapeAttem
     // days). Format: "Wednesday, 10 am to 10 pm, Copy open hours" - a day
     // with no matching label (closed that day) is simply absent, same
     // convention as a closed hour being absent from the Popular Times data.
+    // Near a public holiday the label gains extra text, so every label ending
+    // in "Copy open hours" is read here and parseHoursLabel handles both forms.
     const readHoursLabels = () =>
       page.evaluate(() =>
         Array.from(document.querySelectorAll("[aria-label]"))
           .map((el) => el.getAttribute("aria-label"))
-          .filter((l): l is string => !!l && /^\w+, .+ to .+, Copy open hours$/i.test(l))
+          .filter((l): l is string => !!l && /, Copy open hours$/i.test(l))
       );
     let hoursLabels = await readHoursLabels();
     // Some places (e.g. Sim Lim Square, Ngee Ann City) only show a folded
@@ -489,15 +491,8 @@ async function scrapePopularTimesAttempt(venueName: string): Promise<ScrapeAttem
         hoursLabels = await readHoursLabels();
       }
     }
-    const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
     let hours: OpenHoursEntry[] = hoursLabels
-      .map((label) => {
-        const m = label.match(/^(\w+), (.+) to (.+), Copy open hours$/i);
-        if (!m) return null;
-        const day = DAY_NAMES.findIndex((d) => d.toLowerCase() === m[1].toLowerCase());
-        if (day === -1) return null;
-        return { day, open: m[2].trim(), close: m[3].trim() };
-      })
+      .map(parseHoursLabel)
       .filter((x): x is OpenHoursEntry => x !== null)
       // The expanded view can list a second set of hours (e.g. pick-up) after
       // the place's own, so only the first entry for each day is kept.
