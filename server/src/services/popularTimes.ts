@@ -659,12 +659,13 @@ function lastTouched(venueId: string): number {
 /**
  * Picks the venues whose Popular Times pattern is at least a week old, stalest first.
  * @param venues - the venues to check
+ * @param maxAgeMs - how old a pattern can be before it is due, a week by default. 0 picks every venue.
  * @returns the venues due for a scrape, oldest pattern first
  */
-export function venuesDueForScrape<T extends { id: string }>(venues: T[]): T[] {
+export function venuesDueForScrape<T extends { id: string }>(venues: T[], maxAgeMs: number = PATTERN_MAX_AGE_MS): T[] {
   const now = Date.now();
   return venues
-    .filter((v) => now - lastTouched(v.id) >= PATTERN_MAX_AGE_MS)
+    .filter((v) => now - lastTouched(v.id) >= maxAgeMs)
     .sort((a, b) => lastTouched(a.id) - lastTouched(b.id));
 }
 
