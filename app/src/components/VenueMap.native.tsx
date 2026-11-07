@@ -77,8 +77,9 @@ export function VenueMap({
   const prevSelectedRef = useRef<string | null>(null);
   // Heatmap is iOS-only for now (see Team Briefing) - Android's map is
   // already broken under Expo Go regardless, so there's no working surface
-  // to add it to there yet.
-  const [showHeatmap, setShowHeatmap] = useState(false);
+  // to add it to there yet. On iOS it is on by default, so the app opens
+  // on the heatmap.
+  const [showHeatmap, setShowHeatmap] = useState(Platform.OS === "ios");
   const [heatmapBounds, setHeatmapBounds] = useState<HeatmapBounds | null>(null);
   const [heatmapImageUrl, setHeatmapImageUrl] = useState<string | null>(null);
 

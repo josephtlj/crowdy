@@ -2,7 +2,7 @@
 
 NTU SC2006 Software Engineering, SCSJ Group 3.
 
-**Lab deliverables:** see [`deliverables/`](deliverables/) on `main`. The Lab 5 index, with the SRS, use cases, diagrams and test cases, is [`deliverables/Lab 5 Deliverables/README.md`](deliverables/Lab%205%20Deliverables/README.md).
+**Lab deliverables:** see [`deliverables/`](deliverables/) on `main`. The Lab 5 index, with the SRS, use cases, diagrams, test cases and demo video, is [`deliverables/Lab 5 Deliverables/README.md`](deliverables/Lab%205%20Deliverables/README.md).
 
 
 <table align="center">
@@ -54,7 +54,7 @@ flowchart LR
 ### Features
 - **Live crowd levels** — MRT/LRT stations from LTA DataMall, malls from Google Popular Times, with each mall's typical week as an hourly chart and its opening hours. A mall's figure is labelled as its typical level for the hour, and a Refresh button fetches a fresh reading (at most once every 15 minutes per mall).
 - **Nearby alternatives** — lower-crowd venues of the same type within 3km.
-- **Right now card** — the home screen opens on mall dots and a card summing up all malls at a glance (how many are quiet, moderate, busy or closed), the crowd level most places within 2 km share, and the quietest open mall nearby.
+- **Right now card** — the home screen opens on the whole of Singapore with the crowd heatmap on and both layers off, above a card summing up all malls at a glance (how many are quiet, moderate, busy or closed), the crowd level most places within 2 km share, and the quietest open mall nearby.
 - **Map and heatmap** — crowd-coloured dots, a rail-line layer, and an island-wide crowd heatmap overlay (iOS) where only busy malls and stations (Moderate and above) glow, so hotspots stand out.
 - **Search** — find any tracked venue by name, address or postal code, forgiving small typos in names. *Address, postal code and typo search implemented by Yikai.*
 - **English / 中文** — switch the whole app between English and Simplified Chinese in Settings. *Implemented by Yikai.*
