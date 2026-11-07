@@ -46,7 +46,14 @@ import { useAuth } from "../context/AuthContext";
 
 // Marina Bay, used only if the user denies location permission.
 const FALLBACK_REGION = { lat: 1.2838, lng: 103.8591 };
-const DEFAULT_DELTA = 0.05;
+// The map opens on the whole island, centred on Singapore, rather than on
+// the user's location. The recentre button still moves to the user.
+const ISLAND_REGION: MapRegion = {
+  latitude: 1.3521,
+  longitude: 103.8198,
+  latitudeDelta: 0.3,
+  longitudeDelta: 0.45,
+};
 // Crowd data can change server-side (a mall's daily Popular Times refresh, a
 // transit station's 5-minute LTA cache) without anything on this screen
 // triggering a re-fetch - previously the venue list was only ever fetched
@@ -115,12 +122,12 @@ export default function HomeScreen({ navigation }: Props) {
   // navigating to a second page.
   const [activeTab, setActiveTab] = useState<TabKey>("areas");
   const [searchQuery, setSearchQuery] = useState("");
-  // Malls on by default, so the app opens on pins and a list of nearby
-  // malls rather than a bare map. Lives here (not in VenueMap) so the list
-  // below can filter to match what's on the map.
+  // Every layer is off by default, so the app opens on the heatmap alone.
+  // Lives here (not in VenueMap) so the list below can filter to match
+  // what's on the map.
   const [layers, setLayers] = useState<LayerState>({
     transit: false,
-    venue: true,
+    venue: false,
   });
   // A 401 here means the server rejected the token itself (expired, or
   // invalidated some other way) rather than a normal network hiccup - logs
@@ -316,12 +323,7 @@ export default function HomeScreen({ navigation }: Props) {
         console.error("Failed to get current location, falling back to default region:", err);
       }
       queryCoordsRef.current = coords;
-      setRegion({
-        latitude: coords.lat,
-        longitude: coords.lng,
-        latitudeDelta: DEFAULT_DELTA,
-        longitudeDelta: DEFAULT_DELTA,
-      });
+      setRegion(ISLAND_REGION);
       const nearby = await getNearbyVenues(coords.lat, coords.lng);
       setVenues(nearby);
       setLoading(false);

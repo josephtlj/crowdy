@@ -4,7 +4,7 @@ SCSJ Group 3, SC2006 Software Engineering.
 
 Crowdy is an iOS app for checking how crowded Singapore's MRT/LRT stations and shopping malls are before heading there. It combines live station crowds from LTA DataMall, each mall's usual crowd from Google Popular Times and routing from OneMap, suggests quieter malls nearby, and helps a group of friends pick a mall that is fair for everyone to reach and not too crowded.
 
-Demo video: *(link to be added)*
+Demo video: [SCSJ_Group3_Lab5_DemoVideo.mp4](SCSJ_Group3_Lab5_DemoVideo.mp4) (6 min 25 s, 1080p)
 
 ## Documents
 
@@ -13,6 +13,7 @@ Demo video: *(link to be added)*
 | Software Requirements Specification | [SCSJ_Group3_Lab5_SRS.pdf](SCSJ_Group3_Lab5_SRS.pdf) ([.docx](SCSJ_Group3_Lab5_SRS.docx)) | Functional and non-functional requirements, data dictionary, use case diagram, UI mockups (screenshots of the final app), system architecture, class diagrams and dialog map (Appendix B), changes since Lab 1 (Appendix D) and team contributions (Appendix E) |
 | Use Case Model | [SCSJ_Group3_Lab5_UseCases.pdf](SCSJ_Group3_Lab5_UseCases.pdf) ([.docx](SCSJ_Group3_Lab5_UseCases.docx)) | Use case diagram and the 31 use case descriptions, in the course's use case template |
 | Test Cases | [SCSJ_Group3_Lab5_TestCases.pdf](SCSJ_Group3_Lab5_TestCases.pdf) ([.docx](SCSJ_Group3_Lab5_TestCases.docx)) | Black-box test cases for AlternativesFinder, basis path test cases for isOpenAt and tokenHits with their control flow graphs, and the results of running them on the final code |
+| Demo Video | [SCSJ_Group3_Lab5_DemoVideo.mp4](SCSJ_Group3_Lab5_DemoVideo.mp4) | A 6 minute walkthrough of the working app, with the software engineering behind each feature: the problem and data sources, architecture, the crowd map, venue pages, directions and search, accounts and friends, the meetup planner, and testing and workflow |
 | Demo Slides | [SCSJ_Group3_Lab5_Slides.pdf](SCSJ_Group3_Lab5_Slides.pdf) ([.pptx](SCSJ_Group3_Lab5_Slides.pptx)) | The 15 slides from our Lab 5 demo: the problem and our users, features and data sources, the demo route, architecture, software engineering principles, SOLID, design patterns, design choices, testing, traceability for two use cases and future work. The .pptx includes the speaker notes |
 
 ## Diagrams
